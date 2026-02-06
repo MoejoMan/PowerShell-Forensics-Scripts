@@ -1,0 +1,293 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260206224304
+Username: JOES-LAPTOP\jhg
+RunAs User: JOES-LAPTOP\jhg
+Configuration Name: 
+Machine: JOES-LAPTOP (Microsoft Windows NT 10.0.22621.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File c:\Users\jhg56\Documents\POWERSHELL SCRIPTING\main.ps1
+Process ID: 12948
+PSVersion: 5.1.22621.1037
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.1037
+BuildVersion: 10.0.22621.1037
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\Transcript_06022026-224303.log
+=== Forensic Data Collection ===
+Timestamp: 06-02-2026 22:43:04
+
+=== Running Processes ===
+
+Handles NPM(K)  PM(K)  WS(K) CPU(s)    Id SI ProcessName
+------- ------  -----  ----- ------    -- -- -----------
+    993     53  77776  18176   1.53  3380  1 ACCStd
+    119      8   2636   6500         4084  0 ACCSvc
+    224     15   3596  14840        10796  0 aesm_service
+    377     23  14620  28956   0.02  7404  1 ApplicationFrameHost
+    265     13   2632  12344         4596  0 AutoBootInstallService
+    316     19  19668  19920         4100  0 Bridge_Service
+    462     38 109792 156112   7.34  2988  1 chrome
+    347     29  85888 151792   6.11  5940  1 chrome
+    251     27  68124  99384   1.31  6464  1 chrome
+    327     36  73692 102792   4.48  8296  1 chrome
+    203     19  17128  29344   0.03  8392  1 chrome
+    323     28  82856 147772   2.61 13316  1 chrome
+    338     29  77588 142584   3.88 13468  1 chrome
+   1920     75 167392 242452  37.11 13480  1 chrome
+    227     10   2320   7428   0.05 13556  1 chrome
+   1120     40 237536 199460  97.59 13896  1 chrome
+    417     29  24564  50712   5.61 13912  1 chrome
+    196     14   9916  16964   0.28 13936  1 chrome
+    230     15   8388  15744   0.16 14152  1 chrome
+    566     26  57260  34920   0.86 14168  1 chrome
+    313     36 113868 141628   4.72 14788  1 chrome
+    411     38 181820 249856  34.11 15164  1 chrome
+    340     37 106640 148264  10.31 15212  1 chrome
+    529    183 591964 505664  44.56  1988  1 Code
+    259     61 349876 303768   3.42  2920  1 Code
+    190     18  33276 102648   0.08  3280  1 Code
+    344     30  88776  95624   1.58  6172  1 Code
+    360     21  14744  45840   0.98  6320  1 Code
+    239     11  10576  29312   0.00  6648  1 Code
+    559     54 537832 436684 231.86  8664  1 Code
+    776     25 153556 164036 334.81  9636  1 Code
+    387     41 122876 119592   0.44  9824  1 Code
+   1398     74 147352 160664  10.92 12224  1 Code
+    195     19  32392 113356   0.13 14460  1 Code
+    347     28  88148  98280   3.23 15204  1 Code
+    168     11   7264   8240   0.17  5076  1 CodeSetup-stable-bdd88df003631aaa0bcbe057cb0a940b80a476fa
+    380     25  26916  28212  16.58  5868  1 CodeSetup-stable-bdd88df003631aaa0bcbe057cb0a940b80a476fa.tmp
+     86      7   5200   4920         3932  0 conhost
+    107      8   5352   7720   0.00  4872  1 conhost
+    110      7   5340   6812   0.00  5620  1 conhost
+    107      8   1472   6496   0.05  8004  1 conhost
+    104      8   1232   6080   0.02 10668  1 conhost
+    143      9   1496   8428   0.03 10988  1 conhost
+    107      8   1252   6152   0.00 14792  1 conhost
+    803     26   2188   6228          844  0 csrss
+    839     28   2868   6932          940  1 csrss
+    463     17   4072  19932   1.75 10896  1 ctfmon
+    341     15   3640  10408         5188  0 dasHost
+    103      6   1212   4724         6388  0 dasHost
+    265     15  11436   2116   0.06   964  1 Discord
+   1041     47 147256  31220   3.75  7932  1 Discord
+    586     28  86096   9308   1.41  8608  1 Discord
+    192     12  10544   3872   0.02  9484  1 Discord
+    345     20  15772  18692   1.06 10168  1 Discord
+   1076     97 367176 165920  25.72 14380  1 Discord
+    125      8   1696   9112   0.00  5184  1 dllhost
+    366     16   4740  21224   0.19  5504  1 dllhost
+    277     33   7780  17864   0.28 10640  1 dllhost
+   1329     67 132816 121496         1524  1 dwm
+    100      7   1164   5668         3312  0 ELANFPService
+    375     25  61664   8224   0.11  3496  1 ePowerButton_NB
+    126      8   1832   6528         4168  0 esif_uf
+   5342    166 160440 208108  14.27  8692  1 explorer
+     41      7   1728   2760         1064  0 fontdrvhost
+     41      9   3012   5956         1460  1 fontdrvhost
+    737     31  18016  31956         7388  0 gamingservices
+    297     15  11848   7332         7380  0 gamingservicesnet
+    363     23  13008  22776         3948  0 GTFidoService
+    301     16   5280   4356   0.17 13344  1 HostAppServiceUpdater
+      0      0     60      8            0  0 Idle
+    211     12   2368  10352         2352  0 igfxCUIServiceN
+    332     15   3704  13332   0.38  8300  1 igfxEMN
+    170     12   2716   9352         6220  1 igfxextN
+    195     11   2200   9716         4456  0 Intel_PIE_Service
+    131      8   1212   5492         2024  0 IntelCpHDCPSvc
+    196     23   1608   7844         4312  0 jhi_service
+    218     12   2856  10148         4448  0 LMS
+    522     26  15508  48780   0.48  8940  1 LockApp
+   1578     27   8576  24480          484  0 lsass
+      0      0   1320 169112         2980  0 Memory Compression
+    185     12   2688  10956   0.03  6280  1 MoNotificationUx
+    263     18  21280  21944        12728  0 MoUsoCoreWorker
+    464     16   9888  17328         4372  0 MpDefenderCoreService
+    156     10   8636  17600          644  1 msedgewebview2
+   1032     43  35280 101532         9076  1 msedgewebview2
+    424     21  38852  64428        12844  1 msedgewebview2
+    323     19  12068  30960   0.19 13192  1 msedgewebview2
+    139     10   2416   7620        14208  1 msedgewebview2
+    946    245 334072 253768         4668  0 MsMpEng
+    205     39   3984   9780         6692  0 NisSrv
+    678     26  36432  46512         4272  0 OfficeClickToRun
+    481     30  35608  41416         4116  0 OneApp.IGCC.WinService
+    284     15   3216  14876   0.05  9280  1 OpenConsole
+    197     12   2228  11672   0.06 13204  1 pageant
+     68      6   1644   6240   0.09  3232  1 pet
+   1018     98  51848 141692   0.59  1860  1 PhoneExperienceHost
+    703     32  59076  74020   0.39  2560  1 powershell
+    531     29  80372  73020   0.41  2796  1 powershell
+    944     73 155632 149828   4.28  4544  1 powershell
+    492     29  77412  70224   0.34  8584  1 powershell
+    572     28  65112  71108   0.28 12948  1 powershell
+    756     38  11260  19116   0.70 10720  1 PowerToys
+    564     66  26024  11212   0.52 11332  1 PowerToys.AdvancedPaste
+    203     12  18180   1680   0.36 12256  1 PowerToys.AlwaysOnTop
+    334     40   9884  13140   0.33 12276  1 PowerToys.Awake
+    426     68  43684  41716   1.14  9548  1 PowerToys.ColorPickerUI
+    178     11  16804    964   0.11 11428  1 PowerToys.CropAndLock
+    259     16  32744  15104   0.45 11480  1 PowerToys.FancyZones
+    147      9  16440   1040   0.11  3428  1 PowerToys.KeyboardManagerEngine
+    525     57  24520  10316   0.63 11572  1 PowerToys.Peek.UI
+    694    123 155700  61856  23.67 11860  1 PowerToys.PowerLauncher
+    141     10   4120   8052   0.09  6328  1 PowerToys.SvgThumbnailProvider
+    245     28  24320  18884         8624  0 PresentationFontCache
+    180     19  41908  20912   0.61 10808  1 python
+    257     14   6264  14764        13476  1 QAAdminAgent
+    140     10   1616   8420   0.06 13720  1 QAAgent
+    216     11   3224  10096        13304  0 QASvc
+      0     17  13996  52756          140  0 Registry
+    161      9   1924   7488         4384  0 RstMwService
+    301     12   2340  10116         4392  0 RtkAudUService64
+    252     14   3636  17100   0.03  9144  1 RuntimeBroker
+   1044     43  19088  53896   1.52  9512  1 RuntimeBroker
+    304     17   4080  21592   0.14 10212  1 RuntimeBroker
+    419     21   6936  27244   0.97 11552  1 RuntimeBroker
+    935     22   6364  24188   0.72 11684  1 RuntimeBroker
+    146     10   2080  10228   0.06 13084  1 RuntimeBroker
+   1576    126 159952 103620   5.16  9664  1 SearchHost
+    825     25  37724  43752        10160  0 SearchIndexer
+    422     19   7556  17760        15012  0 SecurityHealthService
+    915     17   6600  15484         1004  0 services
+    114      8   6792   9436        13732  0 SgrmBroker
+    730     37  29548  59056   1.05 11624  1 ShellExperienceHost
+    700     22   6516  32208   2.03  8524  1 sihost
+    172     11   2648  10132   0.00 12924  1 smartscreen
+     58      3   1096   1064          572  0 smss
+    477     22   5784  15080         3628  0 spoolsv
+    145     10   1896   8240         4436  0 sqlwriter
+    724     36  29616  83500   1.47  9596  1 StartMenuExperienceHost
+    545     27  15244   8420   0.17  6912  1 StorPSCTL
+   1195     26  11216  30216         1036  0 svchost
+    270     11   3028  11116         1048  0 svchost
+    315     18   4268  20504         1132  0 svchost
+    403     16   3832  16860         1156  0 svchost
+   1450     21   8208  15408         1176  0 svchost
+    320     11   2980   8752         1220  0 svchost
+    168      9   1744   8904         1512  0 svchost
+    182      7   1568   5916         1676  0 svchost
+    117      8   1212   4944         1684  0 svchost
+    183     10   1892   7888         1756  0 svchost
+    159     27   5460   8108         1804  0 svchost
+    201     11   2356   9852         1816  0 svchost
+    252     13   3064   9836         1820  0 svchost
+    216     10   2056   9740         1832  0 svchost
+    437     19   6448  16684         1844  0 svchost
+   1131     22   7172  16920         1964  0 svchost
+    354     11   2684   9148         2032  0 svchost
+    183     12   1944   8644         2200  0 svchost
+    118      8   1280   6376         2460  0 svchost
+    304     14   4068  14440         2480  0 svchost
+    332     16   3912   9348         2536  0 svchost
+    194     10   2136   7484         2696  0 svchost
+    446     15  17976  18036         2716  0 svchost
+    235     13   2580  12048         2784  0 svchost
+    293      8   1268   5740         2828  0 svchost
+    270     11   3148   8188         2840  0 svchost
+    197     11   2036   8424         2924  0 svchost
+    183     11   2088   8192         2932  0 svchost
+    172     10   2108  10116         2944  0 svchost
+    355     13   3128  13132         3124  0 svchost
+    385     21  23388  33208         3144  0 svchost
+    163      9   1476   7092         3152  0 svchost
+    164      9   1772   6608         3224  0 svchost
+    481     14   2972   9924         3240  0 svchost
+    329     12  12764  20892         3324  0 svchost
+    432     20   4784  18812         3484  0 svchost
+    539     23   7100  20160         3508  0 svchost
+    259     17   2776  11696         3556  0 svchost
+    446     33  13168  19012         3708  0 svchost
+    185     11   1844   8244         3760  0 svchost
+    445     33   5008  15532         4064  0 svchost
+    137     10   1524   7196         4072  0 svchost
+    227     10   2716   8844         4092  0 svchost
+    277     14   2812   8308         4108  0 svchost
+    463     23   6712  19696         4320  0 svchost
+    371     17   2804  10772         4332  0 svchost
+    152     42   1632   6816         4352  0 svchost
+    305     15   3296  11928         4496  0 svchost
+    130      8   1224   5832         4516  0 svchost
+    206     12   2352   9436         4528  0 svchost
+    219     13   3012  10336         4620  0 svchost
+    410     18   7668  16952         4640  0 svchost
+    403     19   4336  18068         4760  0 svchost
+    214     13   2304   7472         4808  0 svchost
+    220     13   2716  11004         4828  0 svchost
+    263     16   2696   8980         5248  0 svchost
+    212     13   2288  11352         5308  0 svchost
+    430     26   3732  13288         5524  0 svchost
+    240     19   2068   7432         6508  0 svchost
+    275     12   2492   8680         6676  0 svchost
+    129      9   1460   7756         6968  0 svchost
+    218     13   3188  14068         7260  0 svchost
+    204     12   2728  11968         7288  0 svchost
+    455     32  18988  23984         7372  0 svchost
+     88      6   1008   4448         7728  0 svchost
+    421     26   5232  20588   0.05  7976  1 svchost
+    239     12   3788  11084         8276  0 svchost
+    478     20   9664  27296   1.13  8592  1 svchost
+    223     16   6804  10084         8616  0 svchost
+    134      9   1492   7448   0.02  8652  1 svchost
+    425     19   8028  29256   4.91  8696  1 svchost
+    284     12   2300  11812         8860  0 svchost
+    298     14   4252  18596         8908  0 svchost
+    424     16   5532  14472         8972  0 svchost
+    394     21   5344  17012         9300  0 svchost
+    200     13   1632   7228         9448  0 svchost
+    308     15   3780  19144   0.05  9744  1 svchost
+    236     13   3176  12556   0.11 10392  1 svchost
+    184     11   2336  11216   0.03 11768  1 svchost
+    144      9   1576   8596        11872  0 svchost
+    168      9   1684   7496        12052  0 svchost
+   5303      0     64   5500            4  0 System
+   1161     59  40284   2296   0.39  7128  1 SystemSettings
+    675     27   8788  31388   0.94 11848  1 SystemSettingsBroker
+    305     31   6992  18216   0.22  8780  1 taskhostw
+    853     33  21836  61796   1.58 12456  1 TextInputHost
+    463     24  15112  44000   1.11 12904  1 TranslucentTB
+    144     10   1876   9060        14328  1 unsecapp
+    130     10   2128   8500   0.00  9020  1 UserOOBEBroker
+    324     17   4692  18968   0.17  9284  1 Widgets
+    295     17   4568  19284   0.09  9104  1 WidgetService
+    579     31  25184  71204   0.36 14128  1 WindowsTerminal
+    143     12   1484   6608          932  0 wininit
+    277     12   2548  12740         1408  1 winlogon
+    377     22  20252  25084         4656  0 wireguard
+    294     17  20984  23316         4728  0 wireguard
+    251     21  23316  23744   2.86  8436  1 wireguard
+    193      9   1980   8828         3924  0 wlanext
+    208     13   3500  10356        12204  0 WmiPrvSE
+    203     12   4384  12368        14224  0 WmiPrvSE
+    243      9   4032   6136         1116  0 WUDFHost
+    358     16   7200  16784         1260  0 WUDFHost
+    218      8   1508   5608         1332  0 WUDFHost
+    261     11   1936   8460         9052  0 WUDFHost
+
+
+
+=== Local User Accounts ===
+
+Name               Enabled Description
+----               ------- -----------
+Administrator      False   Built-in account for administering the computer/domain
+DefaultAccount     False   A user account managed by the system.
+Guest              False   Built-in account for guest access to the computer/domain
+jhg                True
+WDAGUtilityAccount False   A user account managed and used by the system for Windows Defender Application Guard scen...
+
+
+
+=== Prefetch Files ===
+(No prefetch files found on this system)
+
+=== Collection Complete ===
+Log saved to: C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\Transcript_06022026-224303.log
+**********************
+Windows PowerShell transcript end
+End time: 20260206224305
+**********************
