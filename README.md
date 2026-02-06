@@ -1,17 +1,17 @@
 # PowerShell Forensics Scripts
 
-A modular PowerShell-based forensic data collection toolkit for live investigation of Windows systems. Designed to comply with ACPO (Association of Chief Police Officers) good practice guidelines and ISO 27037 standards.
+PowerShell scripts for collecting forensic data from Windows systems during live investigations. Built for the digital forensics course (SCI721), following ACPO guidelines and ISO standards.
 
-## Purpose
+## What It Does
 
-This project provides automated PowerShell scripts to acquire forensic evidence from Windows machines during live investigations, including:
-- **Live system memory dumps** (RAM acquisition)
-- **Running process enumeration** and analysis
-- **User account auditing**
-- **Network connection monitoring** (TCP/UDP connections, ARP tables)
-- **Prefetch file collection** (execution history)
-- **Disk imaging** via FTK Imager CLI integration
-- **Automated HTML report generation** for court documentation
+Basically, these scripts automate the collection of evidence from a live Windows machine:
+- RAM dumps (before the machine gets shut down)
+- Running processes and what they're doing
+- User accounts on the system
+- Network connections (who's connected where)
+- Prefetch files (what was run recently)
+- Full disk imaging with FTK Imager
+- HTML reports with all the findings
 
 ## Project Structure
 
@@ -32,30 +32,19 @@ This project provides automated PowerShell scripts to acquire forensic evidence 
 
 ## Quick Start
 
-### Prerequisites
-- Windows PowerShell 5.0+
-- Administrator privileges
-- FTK Imager (optional, for disk imaging)
-- WinPmem or DumpIt (optional, for advanced RAM acquisition)
+## How to Use
 
-### Basic Usage
+Just run:
+```powershell
+.\run.bat
+```
 
-1. **Clone the repository:**
-   ```powershell
-   git clone https://github.com/MoejoMan/PowerShell-Forensics-Scripts.git
-   cd PowerShell-Forensics-Scripts
-   ```
+This handles admin elevation for you. Or if you want to run PowerShell directly:
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
+```
 
-2. **Run the main script:**
-   ```powershell
-   .\run.bat
-   ```
-   This will auto-elevate to administrator if needed.
-
-3. **Or run main.ps1 directly:**
-   ```powershell
-   powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
-   ```
+Everything gets logged to the `Transcript/` folder with timestamps, and data gets saved as CSV files in `Evidence/`.
 
 ## Script Documentation
 
@@ -89,14 +78,7 @@ Disk imaging integration:
 - Verifies image integrity
 - Supports case/evidence numbering
 
-## Key Concepts
-
-### Compliance
-- **ACPO Principle 3:** All actions logged via `Start-Transcript` for audit trail
-- **Chain of Custody:** Scripts generate timestamped logs and hash verification
-- **Non-destructive:** Live investigation designed to minimize system modification
-
-### PowerShell Cmdlets Used
+## PowerShell Cmdlets Used
 | Cmdlet | Purpose |
 |--------|---------|
 | `Get-Process` | Running process enumeration |
@@ -107,21 +89,19 @@ Disk imaging integration:
 | `Export-Csv` | Data export for analysis |
 | `ConvertTo-Html` | Report generation |
 
-### Data Output Formats
-- **CSV files** - Importable to Excel, forensic tools
-- **HTML reports** - Court-ready documentation with collapsible sections
-- **Transcript logs** - Full execution history with timestamps
-- **E01 images** - Forensic imaging via FTK Imager
+## What Gets Output
 
-## Assessment Context
+The scripts generate:
+- **CSV files** - Easy to open in Excel or import into forensic tools
+- **HTML reports** - For the actual submission/court
+- **Transcript logs** - Everything that ran, with timestamps
+- **E01 images** - Full disk images if using FTK Imager
 
-This project supports a live forensic investigation assessment (ARU SCI721) requiring:
-1. Evidence intake and chain of custody documentation
-2. Forensic report detailing exhibits and findings
-3. Expert witness statement with contemporaneous notes
-4. Court-ready documentation bundle
+Everything goes in the appropriate folder (`Evidence/`, `Transcript/`, `ForensicImage/`) so it's organized.
 
-**Note:** Scripts must be well-commented and all outputs (transcripts, HTML reports, CSV exports) must be included in final submission.
+## The Assignment
+
+For SCI721, we have to do a live forensic investigation on a VM, collect evidence properly, document everything, and write an expert report for court. This toolkit handles the automated collection part — grab the RAM, processes, network stuff, etc. before the machine gets turned off. Then you analyze what you collected.
 
 ## Usage Example
 
@@ -137,18 +117,6 @@ Get-PrefetchFiles
 # Results displayed and logged to Transcript\ directory
 ```
 
-## Important Reminders
-
-- **Always run as Administrator** (run.bat handles this automatically)
-- **Test on non-production systems first**
-- **Maintain chain of custody** - All logs are timestamped
-- **Verify hashes** - Disk images include MD5/SHA1 verification
-- **Document everything** - Contemporaneous notes required for court
-
 ## License
 
 Educational use - ARU Digital Forensics Module
-
-## Author
-
-Created for SCI721 Digital Forensics Investigation Module
