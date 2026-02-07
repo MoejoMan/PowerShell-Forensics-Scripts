@@ -30,7 +30,7 @@ function Get-ProcessList {
     )
     Write-Output "=== Collecting Running Processes ==="
     try {
-        $processes = Get-Process | Select-Object Name, Id, CPU, Memory, Path
+        $processes = Get-Process | Select-Object Name, Id, CPU, WorkingSet, Path
         $processes | Format-Table -AutoSize
         $processes | Export-Csv "$OutputPath\processes.csv" -NoTypeInformation
         Write-Output "Processes saved to: $OutputPath\processes.csv"
@@ -127,10 +127,10 @@ function New-HTMLReport {
     
     try {
         # Convert objects to clean arrays, removing format objects
-        if ($Processes) { $Processes = @($Processes | Where-Object { $_ -is [System.Diagnostics.Process] } | Select-Object Name, Id, CPU, Memory, Path) }
-        if ($Users) { $Users = @($Users | Where-Object { $_ -like "*Name*" -or $_.Name }) }
-        if ($TCPConnections) { $TCPConnections = @($TCPConnections | Where-Object { $_.LocalAddress }) }
-        if ($Neighbors) { $Neighbors = @($Neighbors | Where-Object { $_.IPAddress }) }
+        if ($Processes) { $Processes = @($Processes | Where-Object { $_.Name -and $_.Id } | Select-Object Name, Id, CPU, WorkingSet, Path) }
+        if ($Users) { $Users = @($Users | Where-Object { $_.Name } | Select-Object Name, Enabled, Description, LastLogon) }
+        if ($TCPConnections) { $TCPConnections = @($TCPConnections | Where-Object { $_.LocalAddress } | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State) }
+        if ($Neighbors) { $Neighbors = @($Neighbors | Where-Object { $_.IPAddress } | Select-Object IPAddress, LinkLayerAddress, State, InterfaceAlias) }
         
         $html = @"
 <!DOCTYPE html>

@@ -21,9 +21,8 @@ REM Change to script directory
 cd /d "%~dp0"
 
 REM Run the PowerShell script
-REM Change "awesomescript.ps1" to whichever script you want to run
 echo Starting data collection...
-powershell.exe -ExecutionPolicy Bypass -File "awesomescript.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
 
 REM Keep window open so user can see results
 echo.
