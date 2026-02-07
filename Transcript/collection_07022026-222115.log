@@ -1,0 +1,51 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260207222115
+Username: JOES-LAPTOP\jhg
+RunAs User: JOES-LAPTOP\jhg
+Configuration Name: 
+Machine: JOES-LAPTOP (Microsoft Windows NT 10.0.22621.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File c:\Users\jhg56\Documents\POWERSHELL SCRIPTING\main.ps1
+Process ID: 12176
+PSVersion: 5.1.22621.1037
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.1037
+BuildVersion: 10.0.22621.1037
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\Transcript\collection_07022026-222115.log
+==========================================
+FORENSIC DATA COLLECTION
+==========================================
+Start Time: 07-02-2026 22:21:15
+
+PRIORITY 1: Capturing live RAM (volatile data)
+If this fails, restart in forensic mode and try again
+
+
+PRIORITY 2: Collecting system data
+
+
+
+
+
+
+=== Generating HTML Report ===
+HTML report saved to: C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\HTMLReport\forensic_report.html
+
+==========================================
+Collection Complete
+End Time: 07-02-2026 22:21:17
+
+Output locations:
+  Evidence data: C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\Evidence
+  HTML report: C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\HTMLReport\forensic_report.html
+  Transcript log: C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\Transcript\collection_07022026-222115.log
+==========================================
+**********************
+Windows PowerShell transcript end
+End time: 20260207222117
+**********************

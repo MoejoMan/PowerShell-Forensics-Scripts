@@ -1,0 +1,6 @@
+"Name","Enabled","Description","LastLogon"
+"Administrator","False","Built-in account for administering the computer/domain","04/12/2020 16:41:32"
+"DefaultAccount","False","A user account managed by the system.",
+"Guest","False","Built-in account for guest access to the computer/domain",
+"jhg","True","",
+"WDAGUtilityAccount","False","A user account managed and used by the system for Windows Defender Application Guard scenarios.",
