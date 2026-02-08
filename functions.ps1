@@ -1,4 +1,4 @@
-# Forensic Collection Functions
+﻿# Forensic Collection Functions
 
 # ============================================================================
 # MEMORY ACQUISITION
@@ -8,7 +8,7 @@ function Export-MemoryDump {
         [string]$OutputPath
     )
 
-    Write-Output "=== Dumping RAM ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Dumping RAM ==="
     $result = [pscustomobject]@{
         Success = $false
         Path    = $null
@@ -75,7 +75,7 @@ function Get-ProcessList {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Running Processes ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Running Processes ==="
     try {
         $processes = Get-Process | Select-Object Name, Id, CPU, WorkingSet, Path
         $processes | Format-Table -AutoSize
@@ -92,7 +92,7 @@ function Get-UserList {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Local User Accounts ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Local User Accounts ==="
     try {
         $users = Get-LocalUser | Select-Object Name, Enabled, Description, LastLogon
         $users | Format-Table -AutoSize
@@ -109,7 +109,7 @@ function Get-NetworkConnections {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting TCP Connections ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting TCP Connections ==="
     try {
         $tcpConnections = Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State
         $tcpConnections | Format-Table -AutoSize
@@ -126,7 +126,7 @@ function Get-NetworkNeighbors {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Network Neighbors (ARP) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Neighbors (ARP) ==="
     try {
         $neighbors = Get-NetNeighbor -ErrorAction SilentlyContinue | Select-Object IPAddress, LinkLayerAddress, State, InterfaceAlias
         $neighbors | Format-Table -AutoSize
@@ -143,7 +143,7 @@ function Get-PrefetchFiles {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Prefetch Files ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
         Write-Output "WARNING: Not running as administrator; Prefetch access may be blocked."
@@ -222,7 +222,7 @@ function New-HTMLReport {
         [object]$WmiPersistence,
         [object]$RamResult,
         [object]$FileHashes,
-        # — new sections —
+        # â€” new sections â€”
         [object]$AlternateDataStreams,
         [object]$HiddenFiles,
         [object]$EncryptedVolumes,
@@ -237,7 +237,7 @@ function New-HTMLReport {
         [object]$RDPSessions,
         [object]$MemoryStrings
     )
-    Write-Output "=== Generating HTML Report ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
     try {
         # Convert objects to clean arrays, removing format objects
@@ -671,7 +671,7 @@ function Get-InstalledPrograms {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Installed Programs ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Installed Programs ==="
     try {
         $uninstallPaths = @(
             'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
@@ -725,7 +725,7 @@ function Get-ServicesList {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Services ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Services ==="
     try {
         $services = Get-Service | Select-Object Name, DisplayName, Status, StartType
         if ($services) {
@@ -743,7 +743,7 @@ function Get-ScheduledTasksList {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Scheduled Tasks ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Scheduled Tasks ==="
     try {
         $tasks = Get-ScheduledTask -ErrorAction SilentlyContinue | ForEach-Object {
             $info = $_ | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
@@ -774,7 +774,7 @@ function Get-NetworkConfig {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Network Configuration ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Configuration ==="
     try {
         $adapters = Get-NetIPConfiguration -ErrorAction SilentlyContinue | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway
         if ($adapters) {
@@ -794,7 +794,7 @@ function Get-EventLogTriage {
         [int]$Days = 3
     )
 
-    Write-Output "=== Collecting Event Log Triage ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
     $logs = @{
         Security    = 'event_security.csv'
         System      = 'event_system.csv'
@@ -840,7 +840,7 @@ function Get-WmiPersistence {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting WMI persistence (filters/consumers/bindings) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
     $items = @()
 
     try {
@@ -921,7 +921,7 @@ function Get-Autoruns {
     param(
         [string]$OutputPath
     )
-    Write-Output "=== Collecting Autoruns (Run keys & Startup folders) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
     $items = @()
 
     $runPaths = @(
@@ -992,7 +992,7 @@ function Get-AlternateDataStreams {
         [string]$OutputPath
     )
 
-    Write-Output "=== Scanning for Alternate Data Streams (ADS) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Alternate Data Streams (ADS) ==="
     $items = @()
 
     # Directories most likely to contain user-planted ADS
@@ -1048,7 +1048,7 @@ function Get-HiddenFiles {
         [string]$OutputPath
     )
 
-    Write-Output "=== Scanning for Hidden & System Files ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Hidden & System Files ==="
     $items = @()
 
     $scanPaths = @(
@@ -1099,7 +1099,7 @@ function Get-EncryptedVolumeDetection {
         [string]$OutputPath
     )
 
-    Write-Output "=== Detecting Encrypted Volumes & Containers ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Encrypted Volumes & Containers ==="
     $items = @()
 
     # BitLocker status
@@ -1166,7 +1166,7 @@ function Get-ZoneIdentifierInfo {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting Zone.Identifier (Download Origins) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Zone.Identifier (Download Origins) ==="
     $items = @()
 
     $scanPaths = @(
@@ -1232,7 +1232,7 @@ function Get-RecentFileActivity {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting Recent File Activity (MRU / Recent Docs) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recent File Activity (MRU / Recent Docs) ==="
     $items = @()
 
     # Recent Items folder (LNK shortcuts)
@@ -1264,7 +1264,7 @@ function Get-RecentFileActivity {
         } catch { }
     }
 
-    # RunMRU (Start → Run history)
+    # RunMRU (Start â†’ Run history)
     $runMru = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU'
     if (Test-Path $runMru) {
         try {
@@ -1316,7 +1316,7 @@ function Get-USBDeviceHistory {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting USB Device History ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting USB Device History ==="
     $items = @()
 
     $usbstorPath = 'HKLM:\SYSTEM\CurrentControlSet\Enum\USBSTOR'
@@ -1378,7 +1378,7 @@ function Get-RecycleBinContents {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting Recycle Bin Contents ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recycle Bin Contents ==="
     $items = @()
 
     try {
@@ -1421,7 +1421,7 @@ function Get-DNSCache {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting DNS Cache ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting DNS Cache ==="
     try {
         $dns = Get-DnsClientCache -ErrorAction SilentlyContinue |
             Select-Object Entry, RecordName, RecordType, Status, Section, TimeToLive, DataLength, Data
@@ -1446,7 +1446,7 @@ function Get-ClipboardContents {
         [string]$OutputPath
     )
 
-    Write-Output "=== Capturing Clipboard Contents ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Capturing Clipboard Contents ==="
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
         $clip = [System.Windows.Forms.Clipboard]::GetText()
@@ -1470,7 +1470,7 @@ function Get-MappedDrivesAndShares {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting Mapped Drives & Network Shares ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Mapped Drives & Network Shares ==="
     $items = @()
 
     # Mapped drives (net use)
@@ -1534,7 +1534,7 @@ function Get-PowerShellHistory {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting PowerShell Command History ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting PowerShell Command History ==="
     $items = @()
 
     # PSReadLine history for each user profile
@@ -1584,7 +1584,7 @@ function Get-RDPAndRemoteSessions {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting RDP & Remote Session Artifacts ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting RDP & Remote Session Artifacts ==="
     $items = @()
 
     # Recent RDP connections (Terminal Server Client)
@@ -1677,7 +1677,7 @@ function Get-MemoryStrings {
         [string]$RamDumpPath
     )
 
-    Write-Output "=== Memory Dump Analysis Note ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Memory Dump Analysis Note ==="
 
     if (-not $RamDumpPath -or -not (Test-Path $RamDumpPath)) {
         Write-Output "(No RAM dump available)"
@@ -1738,7 +1738,7 @@ function Get-BrowserArtifactsAndDownloads {
         [string]$OutputPath
     )
 
-    Write-Output "=== Collecting Browser Artifacts & Downloads (best effort) ==="
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Artifacts & Downloads (best effort) ==="
     $browserOut = Join-Path $OutputPath "browser_artifacts"
     New-Item -ItemType Directory -Path $browserOut -Force | Out-Null
 
