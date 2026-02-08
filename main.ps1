@@ -115,6 +115,15 @@ try {
     $encryptedVolumes = Get-EncryptedVolumeDetection -OutputPath $evidencePath
     Write-Output ""
 
+    $shadowCopies = Get-ShadowCopies -OutputPath $evidencePath
+    Write-Output ""
+
+    $timestompedFiles = Get-TimestompDetection -OutputPath $evidencePath
+    Write-Output ""
+
+    $defenderExclusions = Get-DefenderExclusions -OutputPath $evidencePath
+    Write-Output ""
+
     # ========================================================================
     # PRIORITY 4: FILE PROVENANCE & USER ACTIVITY
     # ========================================================================
@@ -131,6 +140,15 @@ try {
     Write-Output ""
 
     $recycleBin = Get-RecycleBinContents -OutputPath $evidencePath
+    Write-Output ""
+
+    $userAssist = Get-UserAssistHistory -OutputPath $evidencePath
+    Write-Output ""
+
+    $hostsFileEntries = Get-HostsFileCheck -OutputPath $evidencePath
+    Write-Output ""
+
+    $firewallRules = Get-FirewallRules -OutputPath $evidencePath
     Write-Output ""
 
     # ========================================================================
@@ -223,7 +241,13 @@ try {
                         -MappedDrives $mappedDrives `
                         -PSHistory $psHistory `
                         -RDPSessions $rdpSessions `
-                        -MemoryStrings $memoryStrings
+                        -MemoryStrings $memoryStrings `
+                        -ShadowCopies $shadowCopies `
+                        -TimestompedFiles $timestompedFiles `
+                        -UserAssist $userAssist `
+                        -HostsFileEntries $hostsFileEntries `
+                        -FirewallRules $firewallRules `
+                        -DefenderExclusions $defenderExclusions
     Write-Output ""
     
 } catch {

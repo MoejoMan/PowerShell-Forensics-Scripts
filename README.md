@@ -32,6 +32,12 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 - PowerShell command history (PSReadLine per-user ConsoleHost_history.txt)
 - RDP & remote session artifacts (recent servers, cache files, active sessions)
 - Memory dump analysis note (with Volatility / strings.exe commands for offline work)
+- Volume Shadow Copy enumeration (missing shadows = anti-forensic deletion)
+- Timestomp detection (files where Created > Modified = timestamp manipulation)
+- UserAssist program execution history (ROT13-decoded, with run counts)
+- Hosts file tampering detection (non-default entries = traffic redirection)
+- Windows Firewall rule analysis (inbound allow rules = backdoor indicators)
+- Windows Defender exclusion audit (excluded paths/processes = malware hiding)
 - HTML report summary of results
 
 ## Project Structure
@@ -100,7 +106,7 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 13. HTML report generation
 
 ### functions.ps1
-**Modular forensic functions (27 total):**
+**Modular forensic functions (33 total):**
 
 | Function | Purpose |
 |----------|---------|
@@ -131,6 +137,12 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 | `Get-PowerShellHistory` | PSReadLine ConsoleHost_history per user |
 | `Get-RDPAndRemoteSessions` | RDP recent servers, cache, active sessions |
 | `Get-MemoryStrings` | Logs RAM dump details + Volatility usage note |
+| `Get-ShadowCopies` | Volume Shadow Copy enumeration (VSS snapshots) |
+| `Get-TimestompDetection` | Detects Created > Modified anomalies |
+| `Get-UserAssistHistory` | ROT13-decoded UserAssist program execution |
+| `Get-HostsFileCheck` | Hosts file tampering detection |
+| `Get-FirewallRules` | Inbound allow firewall rules |
+| `Get-DefenderExclusions` | Windows Defender exclusion audit |
 | `Get-FileHashes` | SHA256 hashes of output files |
 | `New-HTMLReport` | Builds the HTML summary report |
 
@@ -151,7 +163,7 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 | `Get-ScheduledTask` | Scheduled task enumeration |
 | `Get-AppxPackage` | UWP/Appx package listing |
 | `Get-WinEvent` | Event log triage (with `-FilterHashtable`) |
-| `Get-WmiObject` | WMI persistence survey, USB removable drives |
+| `Get-WmiObject` | WMI persistence survey, USB removable drives, shadow copies |
 | `Get-FileHash` | SHA256 integrity hashing |
 | `Get-Item -Stream` | NTFS Alternate Data Stream detection |
 | `Get-Content -Stream Zone.Identifier` | Download origin / provenance tracking |
@@ -160,6 +172,8 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 | `Get-PSDrive` | Mapped network drives |
 | `Get-SmbShare` | SMB shares hosted locally |
 | `Get-SmbSession` | Active inbound SMB sessions |
+| `Get-MpPreference` | Windows Defender exclusion settings |
+| `Get-NetFirewallRule` | Firewall rule enumeration |
 | `Start-Transcript` | Audit logging |
 | `Export-Csv` | Data export for analysis tools |
 | `ConvertTo-Html` | HTML report generation |
@@ -177,6 +191,12 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 | Clipboard capture | `Evidence/<label>/clipboard.txt` | Text |
 | PS history copies | `Evidence/<label>/ps_history_<user>.txt` | Text |
 | Memory IOCs | `Evidence/<label>/memory_strings.csv` | CSV |
+| Shadow copies | `Evidence/<label>/shadow_copies.csv` | CSV |
+| Timestomped files | `Evidence/<label>/timestomped_files.csv` | CSV |
+| UserAssist history | `Evidence/<label>/userassist.csv` | CSV |
+| Hosts file | `Evidence/<label>/hosts_file.csv` | CSV |
+| Firewall rules | `Evidence/<label>/firewall_rules.csv` | CSV |
+| Defender exclusions | `Evidence/<label>/defender_exclusions.csv` | CSV |
 
 All outputs are git-ignored. Previous runs can be found in `Archive/` (also ignored).
 

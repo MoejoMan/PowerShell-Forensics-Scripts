@@ -235,7 +235,14 @@ function New-HTMLReport {
         [object]$MappedDrives,
         [object]$PSHistory,
         [object]$RDPSessions,
-        [object]$MemoryStrings
+        [object]$MemoryStrings,
+        # --- deeper anti-forensics ---
+        [object]$ShadowCopies,
+        [object]$TimestompedFiles,
+        [object]$UserAssist,
+        [object]$HostsFileEntries,
+        [object]$FirewallRules,
+        [object]$DefenderExclusions
     )
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
@@ -250,11 +257,32 @@ function New-HTMLReport {
         if ($Services) { $Services = @($Services | Where-Object { $_.Name } | Select-Object Name, DisplayName, Status, StartType) }
         if ($ScheduledTasks) { $ScheduledTasks = @($ScheduledTasks | Where-Object { $_.TaskName } | Select-Object TaskName, TaskPath, State, LastRunTime, NextRunTime, Author, Principal, Actions) }
         if ($NetworkConfig) { $NetworkConfig = @($NetworkConfig | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway) }
-        if ($Autoruns) { $Autoruns = @($Autoruns | Select-Object Location, Name, Command, Source) }
+        if ($Autoruns) { $Autoruns = @($Autoruns | Where-Object { $_.Location -or $_.Name } | Select-Object Location, Name, Command, Source) }
         if ($EventLogSecurity) { $EventLogSecurity = @($EventLogSecurity | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
         if ($EventLogSystem) { $EventLogSystem = @($EventLogSystem | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
         if ($EventLogApplication) { $EventLogApplication = @($EventLogApplication | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
-        if ($WmiPersistence) { $WmiPersistence = @($WmiPersistence | Select-Object Type, Name, QueryOrClass, Consumer, CommandLine, OtherFields) }
+        if ($WmiPersistence) { $WmiPersistence = @($WmiPersistence | Where-Object { $_.Type -or $_.Name } | Select-Object Type, Name, QueryOrClass, Consumer, CommandLine, OtherFields) }
+
+        # --- Filter new sections (strip Write-Output strings from pipeline) ---
+        if ($AlternateDataStreams) { $AlternateDataStreams = @($AlternateDataStreams | Where-Object { $_.FilePath } | Select-Object FilePath, StreamName, StreamSize, FileModified) }
+        if ($HiddenFiles) { $HiddenFiles = @($HiddenFiles | Where-Object { $_.FullPath } | Select-Object FullPath, Name, SizeKB, Attributes, Created, Modified) }
+        if ($EncryptedVolumes) { $EncryptedVolumes = @($EncryptedVolumes | Where-Object { $_.Type } | Select-Object Type, Identifier, Status, Detail) }
+        if ($ZoneIdentifiers) { $ZoneIdentifiers = @($ZoneIdentifiers | Where-Object { $_.FileName } | Select-Object FileName, FilePath, Zone, HostUrl, ReferrerUrl, FileSize, Modified) }
+        if ($RecentActivity) { $RecentActivity = @($RecentActivity | Where-Object { $_.Source } | Select-Object Source, Name, Value, Modified) }
+        if ($USBDevices) { $USBDevices = @($USBDevices | Where-Object { $_.DeviceClass } | Select-Object DeviceClass, SerialNumber, FriendlyName, Manufacturer, Driver, LastSeen) }
+        if ($RecycleBin) { $RecycleBin = @($RecycleBin | Where-Object { $_.Name } | Select-Object Name, OriginalPath, Size, Type, DateDeleted) }
+        if ($DNSCache) { $DNSCache = @($DNSCache | Where-Object { $_.Entry } | Select-Object Entry, RecordName, RecordType, Status, Section, TimeToLive, DataLength, Data) }
+        if ($MappedDrives) { $MappedDrives = @($MappedDrives | Where-Object { $_.Type } | Select-Object Type, Name, Root, UsedGB, FreeGB) }
+        if ($PSHistory) { $PSHistory = @($PSHistory | Where-Object { $_.User } | Select-Object User, LineNum, Command, Source) }
+        if ($RDPSessions) { $RDPSessions = @($RDPSessions | Where-Object { $_.Type } | Select-Object Type, Target, Username, Detail) }
+        # --- New anti-forensic sections ---
+        if ($ShadowCopies) { $ShadowCopies = @($ShadowCopies | Where-Object { $_.ShadowID -or $_.VolumeName } | Select-Object ShadowID, VolumeName, InstallDate, OriginMachine, ServiceMachine) }
+        if ($TimestompedFiles) { $TimestompedFiles = @($TimestompedFiles | Where-Object { $_.FilePath } | Select-Object FilePath, Name, Created, Modified, DeltaHours, SizeKB) }
+        if ($UserAssist) { $UserAssist = @($UserAssist | Where-Object { $_.ProgramName } | Select-Object ProgramName, RunCount, LastRun, FocusTime, Source) }
+        if ($HostsFileEntries) { $HostsFileEntries = @($HostsFileEntries | Where-Object { $_.IP } | Select-Object IP, Hostname, Status) }
+        if ($FirewallRules) { $FirewallRules = @($FirewallRules | Where-Object { $_.DisplayName } | Select-Object DisplayName, Direction, Action, Protocol, LocalPort, RemoteAddress, Enabled, Profile) }
+        if ($DefenderExclusions) { $DefenderExclusions = @($DefenderExclusions | Where-Object { $_.Type } | Select-Object Type, Value, Risk) }
+
         $downloads = $null
         $browserCopies = $null
         if ($BrowserArtifacts) {
@@ -334,6 +362,11 @@ function New-HTMLReport {
     <div class="card"><h4>DNS Cache</h4><p>$(@($DNSCache).Count)</p></div>
     <div class="card"><h4>RDP Sessions</h4><p>$(@($RDPSessions).Count)</p></div>
     <div class="card"><h4>Memory IOCs</h4><p>$(@($MemoryStrings).Count)</p></div>
+    <div class="card"><h4>Shadow Copies</h4><p>$(@($ShadowCopies).Count)</p></div>
+    <div class="card"><h4>Timestomped</h4><p>$(@($TimestompedFiles).Count)</p></div>
+    <div class="card"><h4>UserAssist</h4><p>$(@($UserAssist).Count)</p></div>
+    <div class="card"><h4>Firewall Rules</h4><p>$(@($FirewallRules).Count)</p></div>
+    <div class="card"><h4>Defender Excl.</h4><p>$(@($DefenderExclusions).Count)</p></div>
 </div>
 
 <details open>
@@ -640,6 +673,75 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
     <summary>Memory String Analysis ($(@($MemoryStrings).Count) IOCs)</summary>
     <p><em>IP addresses, emails, URLs, and bitcoin addresses extracted from the RAM dump.</em></p>
     $(@($MemoryStrings) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        # ====== DEEPER ANTI-FORENSICS SECTIONS ======
+
+        if ($ShadowCopies -and @($ShadowCopies).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Volume Shadow Copies ($(@($ShadowCopies).Count))</summary>
+    <p><em>Shadow copies can contain older versions of files the suspect may have deleted or modified. Absence of expected shadow copies may indicate vssadmin delete shadows was used.</em></p>
+    $(@($ShadowCopies) | ConvertTo-Html -Fragment)
+</details>
+"@
+        } else {
+            $html += @"
+<details open>
+    <summary>Volume Shadow Copies (0)</summary>
+    <p><em>No shadow copies found. This may indicate the suspect ran <code>vssadmin delete shadows /all</code> to destroy recovery points.</em></p>
+</details>
+"@
+        }
+
+        if ($TimestompedFiles -and @($TimestompedFiles).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Timestomp Detection ($(@($TimestompedFiles).Count) anomalies)</summary>
+    <p><em>Files where the Creation timestamp is LATER than the Modified timestamp. This is impossible under normal use and is a strong indicator of timestamp manipulation (anti-forensic technique).</em></p>
+    $(@($TimestompedFiles) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($UserAssist -and @($UserAssist).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>UserAssist Program Execution ($(@($UserAssist).Count))</summary>
+    <p><em>Windows tracks GUI program launches in the UserAssist registry key (ROT13 encoded). Shows what applications the suspect ran and how many times.</em></p>
+    $(@($UserAssist) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($HostsFileEntries -and @($HostsFileEntries).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Hosts File Analysis ($(@($HostsFileEntries).Count) entries)</summary>
+    <p><em>The hosts file can redirect domain names to different IPs. Attackers modify it to block security updates, redirect banking sites, or hide C2 traffic.</em></p>
+    $(@($HostsFileEntries) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($FirewallRules -and @($FirewallRules).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Custom Firewall Rules ($(@($FirewallRules).Count))</summary>
+    <p><em>Firewall rules that allow inbound connections or were recently created. Attackers may add rules to permit reverse shells or C2 channels.</em></p>
+    $(@($FirewallRules) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($DefenderExclusions -and @($DefenderExclusions).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Windows Defender Exclusions ($(@($DefenderExclusions).Count) - SUSPICIOUS)</summary>
+    <p><em>Defender exclusions prevent scanning of specified paths, processes, or extensions. Attackers add exclusions to hide malware from detection.</em></p>
+    $(@($DefenderExclusions) | ConvertTo-Html -Fragment)
 </details>
 "@
         }
@@ -1783,4 +1885,347 @@ function Get-BrowserArtifactsAndDownloads {
         Downloads = $downloads
         BrowserCopies = $copies
     }
+}
+
+# ============================================================================
+# DEEPER ANTI-FORENSICS & CONCEALMENT DETECTION
+# ============================================================================
+
+# Enumerates Volume Shadow Copies (VSS snapshots).  These contain
+# previous versions of files and can be used to recover deleted evidence.
+# If shadow copies are suspiciously absent, the suspect may have deleted
+# them to cover tracks (vssadmin delete shadows /all /quiet).
+function Get-ShadowCopies {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Enumerating Volume Shadow Copies ==="
+    $items = @()
+
+    try {
+        $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue
+        foreach ($s in $shadows) {
+            $items += [pscustomobject]@{
+                ShadowID       = $s.ID
+                VolumeName     = $s.VolumeName
+                InstallDate    = $s.InstallDate
+                OriginMachine  = $s.OriginatingMachine
+                ServiceMachine = $s.ServiceMachine
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Shadow copy enumeration failed - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\shadow_copies.csv" -NoTypeInformation
+        Write-Output "Shadow copies saved to: $OutputPath\shadow_copies.csv"
+    } else {
+        Write-Output "(No shadow copies found - may indicate VSS deletion)"
+    }
+    return $items
+}
+
+# Detects potential timestamp manipulation (timestomping).
+# Under normal Windows operation, a file's CreationTime is always
+# <= its LastWriteTime.  If Created > Modified, the timestamps
+# have been tampered with — a classic anti-forensic technique used
+# to make malicious files blend in by appearing older.
+function Get-TimestompDetection {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Timestomped Files ==="
+    $items = @()
+
+    $scanPaths = @(
+        "$env:USERPROFILE\Desktop",
+        "$env:USERPROFILE\Documents",
+        "$env:USERPROFILE\Downloads",
+        "$env:USERPROFILE\AppData\Roaming",
+        "C:\Temp",
+        "C:\Users\Public"
+    )
+
+    foreach ($dir in $scanPaths) {
+        if (-not (Test-Path $dir)) { continue }
+        try {
+            Get-ChildItem -Path $dir -Recurse -Depth 4 -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                # Created should be <= Modified; if Created > Modified, timestamps were manipulated
+                if ($_.CreationTime -gt $_.LastWriteTime) {
+                    $delta = ($_.CreationTime - $_.LastWriteTime).TotalHours
+                    $items += [pscustomobject]@{
+                        FilePath   = $_.FullName
+                        Name       = $_.Name
+                        Created    = $_.CreationTime
+                        Modified   = $_.LastWriteTime
+                        DeltaHours = [math]::Round($delta, 2)
+                        SizeKB     = [math]::Round(($_.Length / 1KB), 2)
+                    }
+                }
+            }
+        } catch {
+            Write-Output "WARNING: Timestomp scan failed on $dir - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\timestomped_files.csv" -NoTypeInformation
+        Write-Output "Timestomped files saved to: $OutputPath\timestomped_files.csv"
+    } else {
+        Write-Output "(No timestamp anomalies detected)"
+    }
+    return $items
+}
+
+# Reads the UserAssist registry keys that track GUI program launches.
+# Programme names are ROT13-encoded.  This reveals what executables
+# the suspect ran, how many times, and when they last ran them.
+function Get-UserAssistHistory {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting UserAssist Program Execution History ==="
+    $items = @()
+
+    # ROT13 decode helper
+    function Decode-ROT13 {
+        param([string]$Text)
+        $chars = $Text.ToCharArray()
+        $decoded = -join ($chars | ForEach-Object {
+            $c = $_
+            if ($c -ge [char]'A' -and $c -le [char]'Z') {
+                [char]((([int]$c - 65 + 13) % 26) + 65)
+            } elseif ($c -ge [char]'a' -and $c -le [char]'z') {
+                [char]((([int]$c - 97 + 13) % 26) + 97)
+            } else {
+                $c
+            }
+        })
+        return $decoded
+    }
+
+    # UserAssist GUID folders (CEBFF5CD = executables, F4E57C4B = shortcuts)
+    $uaKeys = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\Count',
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{F4E57C4B-2036-45F0-A9AB-443BCFE33D9F}\Count'
+    )
+
+    foreach ($keyPath in $uaKeys) {
+        if (-not (Test-Path $keyPath)) { continue }
+        try {
+            $source = if ($keyPath -match 'CEBFF5CD') { 'Executables' } else { 'Shortcuts' }
+            $key = Get-Item -Path $keyPath -ErrorAction SilentlyContinue
+            foreach ($valName in $key.GetValueNames()) {
+                if (-not $valName) { continue }
+                $decoded = Decode-ROT13 -Text $valName
+                $data = $key.GetValue($valName)
+                $runCount = 0
+                $lastRun  = $null
+                $focusTime = 0
+
+                # Parse the binary value (UserAssist v5 structure - Win7+)
+                if ($data -and $data.Length -ge 72) {
+                    $runCount  = [BitConverter]::ToUInt32($data, 4)
+                    $focusTime = [BitConverter]::ToInt32($data, 12)
+                    $ft = [BitConverter]::ToInt64($data, 60)
+                    if ($ft -gt 0) {
+                        try { $lastRun = [DateTime]::FromFileTime($ft) } catch { }
+                    }
+                }
+
+                if ($runCount -gt 0 -or $lastRun) {
+                    $items += [pscustomobject]@{
+                        ProgramName = $decoded
+                        RunCount    = $runCount
+                        LastRun     = $lastRun
+                        FocusTime   = $focusTime
+                        Source      = $source
+                    }
+                }
+            }
+        } catch {
+            Write-Output "WARNING: UserAssist read failed on $keyPath - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\userassist.csv" -NoTypeInformation
+        Write-Output "UserAssist data saved to: $OutputPath\userassist.csv"
+    } else {
+        Write-Output "(No UserAssist data found)"
+    }
+    return $items
+}
+
+# Checks the Windows hosts file for non-default entries.
+# Attackers modify the hosts file to redirect domains (e.g. block
+# antivirus updates, redirect banking sites, or create covert channels).
+function Get-HostsFileCheck {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Checking Hosts File for Tampering ==="
+    $items = @()
+
+    $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+    if (Test-Path $hostsPath) {
+        try {
+            $hostsInfo = Get-Item $hostsPath -ErrorAction SilentlyContinue
+            $lines = Get-Content $hostsPath -ErrorAction SilentlyContinue
+
+            # Record file metadata
+            $items += [pscustomobject]@{
+                IP       = '(metadata)'
+                Hostname = $hostsPath
+                Status   = "Modified: $($hostsInfo.LastWriteTime) | Size: $($hostsInfo.Length) bytes"
+            }
+
+            foreach ($line in $lines) {
+                $trimmed = $line.Trim()
+                # Skip empty lines and comments
+                if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+                # Parse IP hostname entries
+                if ($trimmed -match '^(\S+)\s+(.+)$') {
+                    $ip   = $Matches[1]
+                    $host_ = $Matches[2].Trim()
+
+                    # Default entries are 127.0.0.1 localhost and ::1 localhost
+                    $isDefault = ($ip -eq '127.0.0.1' -and $host_ -eq 'localhost') -or
+                                 ($ip -eq '::1' -and $host_ -eq 'localhost')
+
+                    $status = if ($isDefault) { 'Default' } else { 'SUSPICIOUS - Non-default entry' }
+
+                    $items += [pscustomobject]@{
+                        IP       = $ip
+                        Hostname = $host_
+                        Status   = $status
+                    }
+                }
+            }
+        } catch {
+            Write-Output "WARNING: Hosts file read failed - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\hosts_file.csv" -NoTypeInformation
+        Write-Output "Hosts file analysis saved to: $OutputPath\hosts_file.csv"
+    } else {
+        Write-Output "(Hosts file not found or empty)"
+    }
+    return $items
+}
+
+# Enumerates Windows Firewall rules, focusing on rules that ALLOW
+# inbound connections.  Attackers may add firewall rules to permit
+# reverse shells, C2 listeners, or data exfiltration channels.
+function Get-FirewallRules {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Suspicious Firewall Rules ==="
+    $items = @()
+
+    try {
+        # Focus on inbound Allow rules and any rules created for non-system programs
+        $rules = Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue
+        foreach ($r in $rules) {
+            try {
+                $portFilter = $r | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue
+                $addrFilter = $r | Get-NetFirewallAddressFilter -ErrorAction SilentlyContinue
+                $items += [pscustomobject]@{
+                    DisplayName   = $r.DisplayName
+                    Direction     = $r.Direction.ToString()
+                    Action        = $r.Action.ToString()
+                    Protocol      = $portFilter.Protocol
+                    LocalPort     = $portFilter.LocalPort
+                    RemoteAddress = $addrFilter.RemoteAddress
+                    Enabled       = $r.Enabled.ToString()
+                    Profile       = $r.Profile.ToString()
+                }
+            } catch { }
+        }
+    } catch {
+        Write-Output "WARNING: Firewall rule collection failed - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\firewall_rules.csv" -NoTypeInformation
+        Write-Output "Firewall rules saved to: $OutputPath\firewall_rules.csv"
+    } else {
+        Write-Output "(No matching firewall rules found)"
+    }
+    return $items
+}
+
+# Checks Windows Defender exclusion settings.  Attackers frequently
+# add exclusions for paths, processes, or file extensions to prevent
+# their malware from being detected by real-time protection.
+function Get-DefenderExclusions {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Checking Windows Defender Exclusions ==="
+    $items = @()
+
+    try {
+        $prefs = Get-MpPreference -ErrorAction SilentlyContinue
+
+        if ($prefs.ExclusionPath) {
+            foreach ($p in $prefs.ExclusionPath) {
+                $items += [pscustomobject]@{
+                    Type  = 'PathExclusion'
+                    Value = $p
+                    Risk  = 'Malware can hide in excluded directories'
+                }
+            }
+        }
+
+        if ($prefs.ExclusionProcess) {
+            foreach ($p in $prefs.ExclusionProcess) {
+                $items += [pscustomobject]@{
+                    Type  = 'ProcessExclusion'
+                    Value = $p
+                    Risk  = 'Excluded process will not be scanned'
+                }
+            }
+        }
+
+        if ($prefs.ExclusionExtension) {
+            foreach ($e in $prefs.ExclusionExtension) {
+                $items += [pscustomobject]@{
+                    Type  = 'ExtensionExclusion'
+                    Value = $e
+                    Risk  = 'Files with this extension bypass scanning'
+                }
+            }
+        }
+
+        if ($prefs.ExclusionIpAddress) {
+            foreach ($ip in $prefs.ExclusionIpAddress) {
+                $items += [pscustomobject]@{
+                    Type  = 'IPExclusion'
+                    Value = $ip
+                    Risk  = 'Network traffic to/from this IP bypasses scanning'
+                }
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Defender preference check failed (may need admin) - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\defender_exclusions.csv" -NoTypeInformation
+        Write-Output "Defender exclusions saved to: $OutputPath\defender_exclusions.csv"
+    } else {
+        Write-Output "(No Defender exclusions configured)"
+    }
+    return $items
 }
