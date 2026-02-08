@@ -31,7 +31,7 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 - Mapped drives & SMB shares (network shares, inbound sessions)
 - PowerShell command history (PSReadLine per-user ConsoleHost_history.txt)
 - RDP & remote session artifacts (recent servers, cache files, active sessions)
-- Memory string extraction (IPs, emails, URLs, bitcoin addresses from RAM dump)
+- Memory dump analysis note (with Volatility / strings.exe commands for offline work)
 - HTML report summary of results
 
 ## Project Structure
@@ -96,7 +96,7 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 9. Volatile capture: DNS cache, clipboard, mapped drives/shares
 10. Command history & remote access: PowerShell history, RDP sessions
 11. SHA256 hashing of all output files (integrity)
-12. Memory string extraction (IPs, emails, URLs, bitcoin from RAM dump)
+12. Memory dump analysis note (recommends Volatility / strings.exe for offline analysis)
 13. HTML report generation
 
 ### functions.ps1
@@ -130,7 +130,7 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 | `Get-MappedDrivesAndShares` | Mapped drives, SMB shares, active sessions |
 | `Get-PowerShellHistory` | PSReadLine ConsoleHost_history per user |
 | `Get-RDPAndRemoteSessions` | RDP recent servers, cache, active sessions |
-| `Get-MemoryStrings` | IP/email/URL/bitcoin extraction from RAM |
+| `Get-MemoryStrings` | Logs RAM dump details + Volatility usage note |
 | `Get-FileHashes` | SHA256 hashes of output files |
 | `New-HTMLReport` | Builds the HTML summary report |
 
