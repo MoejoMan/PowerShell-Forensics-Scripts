@@ -221,7 +221,21 @@ function New-HTMLReport {
         [object]$EventLogApplication,
         [object]$WmiPersistence,
         [object]$RamResult,
-        [object]$FileHashes
+        [object]$FileHashes,
+        # — new sections —
+        [object]$AlternateDataStreams,
+        [object]$HiddenFiles,
+        [object]$EncryptedVolumes,
+        [object]$ZoneIdentifiers,
+        [object]$RecentActivity,
+        [object]$USBDevices,
+        [object]$RecycleBin,
+        [object]$DNSCache,
+        [string]$ClipboardText,
+        [object]$MappedDrives,
+        [object]$PSHistory,
+        [object]$RDPSessions,
+        [object]$MemoryStrings
     )
     Write-Output "=== Generating HTML Report ==="
     
@@ -313,6 +327,13 @@ function New-HTMLReport {
     <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
     <div class="card"><h4>Security Events</h4><p>$(@($EventLogSecurity).Count)</p></div>
     <div class="card"><h4>WMI Bindings</h4><p>$(@($WmiPersistence).Count)</p></div>
+    <div class="card"><h4>ADS Found</h4><p>$(@($AlternateDataStreams).Count)</p></div>
+    <div class="card"><h4>Hidden Files</h4><p>$(@($HiddenFiles).Count)</p></div>
+    <div class="card"><h4>USB Devices</h4><p>$(@($USBDevices).Count)</p></div>
+    <div class="card"><h4>Recycle Bin</h4><p>$(@($RecycleBin).Count)</p></div>
+    <div class="card"><h4>DNS Cache</h4><p>$(@($DNSCache).Count)</p></div>
+    <div class="card"><h4>RDP Sessions</h4><p>$(@($RDPSessions).Count)</p></div>
+    <div class="card"><h4>Memory IOCs</h4><p>$(@($MemoryStrings).Count)</p></div>
 </div>
 
 <details open>
@@ -486,6 +507,139 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
 <details>
     <summary>Browser Artifacts Copy Status ($(@($browserCopies).Count))</summary>
     $(@($browserCopies) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        # ====== NEW SECTIONS ======
+
+        if ($ZoneIdentifiers -and @($ZoneIdentifiers).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Download Origins / Zone.Identifier ($(@($ZoneIdentifiers).Count) files)</summary>
+    <p><em>Shows where files were downloaded from (HostUrl) and the referring page. Zone 3 = Internet.</em></p>
+    $(@($ZoneIdentifiers) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($AlternateDataStreams -and @($AlternateDataStreams).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Alternate Data Streams ($(@($AlternateDataStreams).Count) - SUSPICIOUS)</summary>
+    <p><em>NTFS Alternate Data Streams can hide data inside normal files without changing their visible size. Any entries here warrant further examination.</em></p>
+    $(@($AlternateDataStreams) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($HiddenFiles -and @($HiddenFiles).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Hidden &amp; System Files ($(@($HiddenFiles).Count))</summary>
+    <p><em>Files with Hidden or System attributes set in user-writable directories.</em></p>
+    $(@($HiddenFiles) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($EncryptedVolumes -and @($EncryptedVolumes).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Encrypted Volumes &amp; Containers ($(@($EncryptedVolumes).Count))</summary>
+    <p><em>BitLocker volumes, VeraCrypt / TrueCrypt containers, and related running processes.</em></p>
+    $(@($EncryptedVolumes) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($USBDevices -and @($USBDevices).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>USB Device History ($(@($USBDevices).Count))</summary>
+    <p><em>USB storage devices previously connected. May indicate data exfiltration.</em></p>
+    $(@($USBDevices) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($RecycleBin -and @($RecycleBin).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Recycle Bin ($(@($RecycleBin).Count) items)</summary>
+    <p><em>Deleted files may contain evidence the suspect tried to destroy.</em></p>
+    $(@($RecycleBin) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($RecentActivity -and @($RecentActivity).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Recent File Activity / MRU ($(@($RecentActivity).Count))</summary>
+    <p><em>Recent documents opened, paths typed in Explorer, and Run dialog history.</em></p>
+    $(@($RecentActivity) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($DNSCache -and @($DNSCache).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>DNS Cache ($(@($DNSCache).Count) entries)</summary>
+    <p><em>Recently resolved domain names (volatile - lost on reboot).</em></p>
+    $(@($DNSCache) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($ClipboardText) {
+            $escapedClip = [System.Net.WebUtility]::HtmlEncode($ClipboardText)
+            $html += @"
+<details open>
+    <summary>Clipboard Contents</summary>
+    <p><em>Text data on the clipboard at time of collection (volatile).</em></p>
+    <pre style="background:#fff;padding:12px;border:1px solid #bdc3c7;white-space:pre-wrap;">$escapedClip</pre>
+</details>
+"@
+        }
+
+        if ($MappedDrives -and @($MappedDrives).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Mapped Drives &amp; Network Shares ($(@($MappedDrives).Count))</summary>
+    <p><em>Network-mapped drives, SMB shares hosted, and active inbound sessions.</em></p>
+    $(@($MappedDrives) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($PSHistory -and @($PSHistory).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>PowerShell Command History ($(@($PSHistory).Count) commands)</summary>
+    <p><em>Commands previously executed in PowerShell by each user (PSReadLine history).</em></p>
+    $(@($PSHistory) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($RDPSessions -and @($RDPSessions).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>RDP &amp; Remote Sessions ($(@($RDPSessions).Count))</summary>
+    <p><em>Remote Desktop connections (outgoing history, cache files, active sessions). Critical for linking two VMs.</em></p>
+    $(@($RDPSessions) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($MemoryStrings -and @($MemoryStrings).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>Memory String Analysis ($(@($MemoryStrings).Count) IOCs)</summary>
+    <p><em>IP addresses, emails, URLs, and bitcoin addresses extracted from the RAM dump.</em></p>
+    $(@($MemoryStrings) | ConvertTo-Html -Fragment)
 </details>
 "@
         }
@@ -825,6 +979,798 @@ function Get-Autoruns {
     }
     return $items
 }
+
+# ============================================================================
+# ANTI-FORENSICS & CONCEALMENT DETECTION
+# ============================================================================
+
+# Scans user-accessible areas for NTFS Alternate Data Streams (hidden data
+# attached to regular files).  Commonly abused to conceal payloads, exfil
+# lists, or extortion material without changing visible file properties.
+function Get-AlternateDataStreams {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Scanning for Alternate Data Streams (ADS) ==="
+    $items = @()
+
+    # Directories most likely to contain user-planted ADS
+    $scanPaths = @(
+        "$env:USERPROFILE\Desktop",
+        "$env:USERPROFILE\Documents",
+        "$env:USERPROFILE\Downloads",
+        "$env:APPDATA",
+        "C:\Temp",
+        "C:\Users\Public"
+    )
+
+    foreach ($dir in $scanPaths) {
+        if (-not (Test-Path $dir)) { continue }
+        try {
+            # Get-Item -Stream * lists every stream; Zone.Identifier is normal,
+            # but anything beyond :$DATA and Zone.Identifier is suspicious.
+            Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                    $file = $_
+                    try {
+                        $streams = Get-Item -Path $file.FullName -Stream * -ErrorAction SilentlyContinue |
+                            Where-Object { $_.Stream -ne ':$DATA' -and $_.Stream -ne 'Zone.Identifier' }
+                        foreach ($s in $streams) {
+                            $items += [pscustomobject]@{
+                                FilePath   = $file.FullName
+                                StreamName = $s.Stream
+                                StreamSize = $s.Length
+                                FileModified = $file.LastWriteTime
+                            }
+                        }
+                    } catch { }
+                }
+        } catch {
+            Write-Output "WARNING: ADS scan failed on $dir - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\alternate_data_streams.csv" -NoTypeInformation
+        Write-Output "ADS results saved to: $OutputPath\alternate_data_streams.csv"
+    } else {
+        Write-Output "(No suspicious alternate data streams found)"
+    }
+    return $items
+}
+
+# Enumerates hidden and system files in user-writable directories.
+# Attackers frequently set the Hidden or System attribute to conceal
+# tools, key-loggers, or stolen data from casual browsing.
+function Get-HiddenFiles {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Scanning for Hidden & System Files ==="
+    $items = @()
+
+    $scanPaths = @(
+        "$env:USERPROFILE",
+        "C:\Temp",
+        "C:\Users\Public",
+        "C:\ProgramData"
+    )
+
+    foreach ($dir in $scanPaths) {
+        if (-not (Test-Path $dir)) { continue }
+        try {
+            Get-ChildItem -Path $dir -Recurse -Force -File -ErrorAction SilentlyContinue |
+                Where-Object {
+                    ($_.Attributes -band [System.IO.FileAttributes]::Hidden) -or
+                    ($_.Attributes -band [System.IO.FileAttributes]::System)
+                } | ForEach-Object {
+                    $items += [pscustomobject]@{
+                        FullPath       = $_.FullName
+                        Name           = $_.Name
+                        SizeKB         = [math]::Round(($_.Length / 1KB), 2)
+                        Attributes     = $_.Attributes.ToString()
+                        Created        = $_.CreationTime
+                        Modified       = $_.LastWriteTime
+                    }
+                }
+        } catch {
+            Write-Output "WARNING: Hidden-file scan failed on $dir - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\hidden_files.csv" -NoTypeInformation
+        Write-Output "Hidden files saved to: $OutputPath\hidden_files.csv"
+    } else {
+        Write-Output "(No hidden/system files found in scanned paths)"
+    }
+    return $items
+}
+
+# Detects presence of disk-encryption tools (BitLocker, VeraCrypt,
+# TrueCrypt) and containers.  Encrypted volumes may hide stolen data
+# or extortion-related material from forensic examination.
+function Get-EncryptedVolumeDetection {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Detecting Encrypted Volumes & Containers ==="
+    $items = @()
+
+    # BitLocker status
+    try {
+        $bl = Get-BitLockerVolume -ErrorAction SilentlyContinue
+        foreach ($v in $bl) {
+            $items += [pscustomobject]@{
+                Type       = 'BitLocker'
+                Identifier = $v.MountPoint
+                Status     = $v.ProtectionStatus
+                Detail     = $v.EncryptionMethod
+            }
+        }
+    } catch {
+        Write-Output "WARNING: BitLocker query failed (may not be available) - $_"
+    }
+
+    # Look for VeraCrypt / TrueCrypt containers by extension or known process
+    $containerExts = @('*.hc', '*.tc', '*.vhd', '*.vhdx', '*.img')
+    $searchDirs = @("$env:USERPROFILE", "C:\Users\Public", "C:\Temp")
+    foreach ($dir in $searchDirs) {
+        if (-not (Test-Path $dir)) { continue }
+        foreach ($ext in $containerExts) {
+            Get-ChildItem -Path $dir -Filter $ext -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Type       = 'Container'
+                    Identifier = $_.FullName
+                    Status     = "$([math]::Round($_.Length / 1MB, 2)) MB"
+                    Detail     = "Extension: $($_.Extension)"
+                }
+            }
+        }
+    }
+
+    # Running encryption processes
+    $encProcs = Get-Process -Name 'VeraCrypt','TrueCrypt','veracrypt','truecrypt' -ErrorAction SilentlyContinue
+    foreach ($p in $encProcs) {
+        $items += [pscustomobject]@{
+            Type       = 'RunningProcess'
+            Identifier = $p.Name
+            Status     = "PID $($p.Id)"
+            Detail     = $p.Path
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\encrypted_volumes.csv" -NoTypeInformation
+        Write-Output "Encrypted volume info saved to: $OutputPath\encrypted_volumes.csv"
+    } else {
+        Write-Output "(No encrypted volumes or containers detected)"
+    }
+    return $items
+}
+
+# ============================================================================
+# FILE PROVENANCE & METADATA
+# ============================================================================
+
+# Reads NTFS Zone.Identifier ADS to determine WHERE files were downloaded
+# from, e.g. which URL / referrer.  Critical for linking downloaded tools
+# or stolen data back to an extortion method (email attachment, web drop).
+function Get-ZoneIdentifierInfo {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting Zone.Identifier (Download Origins) ==="
+    $items = @()
+
+    $scanPaths = @(
+        "$env:USERPROFILE\Downloads",
+        "$env:USERPROFILE\Desktop",
+        "$env:USERPROFILE\Documents",
+        "C:\Temp",
+        "C:\Users\Public\Downloads"
+    )
+
+    foreach ($dir in $scanPaths) {
+        if (-not (Test-Path $dir)) { continue }
+        try {
+            Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+                try {
+                    $zi = Get-Content -Path $_.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue
+                    if ($zi) {
+                        $zoneId   = ($zi | Select-String 'ZoneId=(\d)').Matches | ForEach-Object { $_.Groups[1].Value }
+                        $hostUrl  = ($zi | Select-String 'HostUrl=(.+)').Matches | ForEach-Object { $_.Groups[1].Value }
+                        $referrer = ($zi | Select-String 'ReferrerUrl=(.+)').Matches | ForEach-Object { $_.Groups[1].Value }
+
+                        $zoneName = switch ($zoneId) {
+                            '0' { 'Local'   }
+                            '1' { 'Intranet'}
+                            '2' { 'Trusted' }
+                            '3' { 'Internet'}
+                            '4' { 'Restricted'}
+                            default { "Unknown ($zoneId)" }
+                        }
+
+                        $items += [pscustomobject]@{
+                            FileName    = $_.Name
+                            FilePath    = $_.FullName
+                            Zone        = $zoneName
+                            HostUrl     = $hostUrl
+                            ReferrerUrl = $referrer
+                            FileSize    = $_.Length
+                            Modified    = $_.LastWriteTime
+                        }
+                    }
+                } catch { }
+            }
+        } catch {
+            Write-Output "WARNING: Zone.Identifier scan failed on $dir - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\zone_identifiers.csv" -NoTypeInformation
+        Write-Output "Zone.Identifier data saved to: $OutputPath\zone_identifiers.csv"
+    } else {
+        Write-Output "(No Zone.Identifier data found)"
+    }
+    return $items
+}
+
+# Collects recent-file-activity indicators: RecentDocs, TypedPaths,
+# RunMRU, and the contents of the Recent Items folder.  Reveals what
+# files the suspect opened, what paths they typed, and what they ran.
+function Get-RecentFileActivity {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting Recent File Activity (MRU / Recent Docs) ==="
+    $items = @()
+
+    # Recent Items folder (LNK shortcuts)
+    $recentDir = "$env:APPDATA\Microsoft\Windows\Recent"
+    if (Test-Path $recentDir) {
+        Get-ChildItem -Path $recentDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $items += [pscustomobject]@{
+                Source   = 'RecentItems'
+                Name     = $_.Name
+                Value    = $_.FullName
+                Modified = $_.LastWriteTime
+            }
+        }
+    }
+
+    # Explorer TypedPaths (URLs / paths typed into Explorer address bar)
+    $typedPaths = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\TypedPaths'
+    if (Test-Path $typedPaths) {
+        try {
+            $tp = Get-ItemProperty -Path $typedPaths -ErrorAction SilentlyContinue
+            $tp.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' } | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Source   = 'TypedPaths'
+                    Name     = $_.Name
+                    Value    = $_.Value
+                    Modified = $null
+                }
+            }
+        } catch { }
+    }
+
+    # RunMRU (Start → Run history)
+    $runMru = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU'
+    if (Test-Path $runMru) {
+        try {
+            $rm = Get-ItemProperty -Path $runMru -ErrorAction SilentlyContinue
+            $rm.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' -and $_.Name -ne 'MRUList' } | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Source   = 'RunMRU'
+                    Name     = $_.Name
+                    Value    = $_.Value
+                    Modified = $null
+                }
+            }
+        } catch { }
+    }
+
+    # RecentDocs registry (per extension)
+    $recentDocsKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs'
+    if (Test-Path $recentDocsKey) {
+        try {
+            Get-ChildItem -Path $recentDocsKey -ErrorAction SilentlyContinue | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Source   = 'RecentDocs'
+                    Name     = $_.PSChildName
+                    Value    = "(registry subkey - binary data)"
+                    Modified = $null
+                }
+            }
+        } catch { }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\recent_file_activity.csv" -NoTypeInformation
+        Write-Output "Recent file activity saved to: $OutputPath\recent_file_activity.csv"
+    } else {
+        Write-Output "(No recent file activity found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# DEVICE & REMOVABLE MEDIA FORENSICS
+# ============================================================================
+
+# Enumerates USB storage devices that have been connected, using the
+# USBSTOR registry key.  Evidence of USB drives can indicate data
+# exfiltration (stealing files from victims).
+function Get-USBDeviceHistory {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting USB Device History ==="
+    $items = @()
+
+    $usbstorPath = 'HKLM:\SYSTEM\CurrentControlSet\Enum\USBSTOR'
+    if (Test-Path $usbstorPath) {
+        try {
+            Get-ChildItem -Path $usbstorPath -ErrorAction SilentlyContinue | ForEach-Object {
+                $deviceClass = $_
+                Get-ChildItem -Path $deviceClass.PSPath -ErrorAction SilentlyContinue | ForEach-Object {
+                    $serial = $_.PSChildName
+                    $props  = Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue
+                    $items += [pscustomobject]@{
+                        DeviceClass  = $deviceClass.PSChildName
+                        SerialNumber = $serial
+                        FriendlyName = $props.FriendlyName
+                        Manufacturer = $props.Mfg
+                        Driver       = $props.Driver
+                        LastSeen     = $props.LastArrivalDate
+                    }
+                }
+            }
+        } catch {
+            Write-Output "WARNING: USBSTOR read failed - $_"
+        }
+    } else {
+        Write-Output "(USBSTOR registry key not found)"
+    }
+
+    # Also capture currently mounted removable drives
+    try {
+        Get-WmiObject -Class Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue | ForEach-Object {
+            $items += [pscustomobject]@{
+                DeviceClass  = 'MountedRemovable'
+                SerialNumber = $_.VolumeSerialNumber
+                FriendlyName = "$($_.DeviceID) $($_.VolumeName)"
+                Manufacturer = $null
+                Driver       = $null
+                LastSeen     = "(currently mounted)"
+            }
+        }
+    } catch { }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\usb_device_history.csv" -NoTypeInformation
+        Write-Output "USB device history saved to: $OutputPath\usb_device_history.csv"
+    } else {
+        Write-Output "(No USB device history found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# DELETED / RECYCLED DATA
+# ============================================================================
+
+# Lists items currently in the Recycle Bin. Suspects often delete
+# incriminating files; the Recycle Bin may still contain them.
+function Get-RecycleBinContents {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting Recycle Bin Contents ==="
+    $items = @()
+
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        $recycleBin = $shell.NameSpace(0x0A)  # 0x0A = Recycle Bin
+
+        if ($recycleBin) {
+            $recycleBin.Items() | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Name         = $_.Name
+                    OriginalPath = $_.Path
+                    Size         = $_.Size
+                    Type         = $_.Type
+                    DateDeleted  = $recycleBin.GetDetailsOf($_, 2)
+                }
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Recycle Bin enumeration failed - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\recycle_bin.csv" -NoTypeInformation
+        Write-Output "Recycle Bin contents saved to: $OutputPath\recycle_bin.csv"
+    } else {
+        Write-Output "(Recycle Bin is empty or inaccessible)"
+    }
+    return $items
+}
+
+# ============================================================================
+# VOLATILE EVIDENCE (TIME-SENSITIVE)
+# ============================================================================
+
+# Captures the DNS client cache, showing recently resolved domains.
+# Extremely volatile - lost on reboot.  May reveal C2 servers, cloud
+# storage, email providers, or other services the suspect contacted.
+function Get-DNSCache {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting DNS Cache ==="
+    try {
+        $dns = Get-DnsClientCache -ErrorAction SilentlyContinue |
+            Select-Object Entry, RecordName, RecordType, Status, Section, TimeToLive, DataLength, Data
+        if ($dns) {
+            $dns | Export-Csv "$OutputPath\dns_cache.csv" -NoTypeInformation
+            Write-Output "DNS cache saved to: $OutputPath\dns_cache.csv"
+        } else {
+            Write-Output "(DNS cache is empty)"
+        }
+        return $dns
+    } catch {
+        Write-Output "WARNING: DNS cache collection failed - $_"
+        return $null
+    }
+}
+
+# Captures current clipboard text content.  The clipboard might hold
+# passwords, bitcoin addresses, or snippets of extortion messages.
+# Extremely volatile.
+function Get-ClipboardContents {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Capturing Clipboard Contents ==="
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        $clip = [System.Windows.Forms.Clipboard]::GetText()
+        if ($clip) {
+            $clip | Out-File "$OutputPath\clipboard.txt" -Encoding UTF8
+            Write-Output "Clipboard contents saved to: $OutputPath\clipboard.txt"
+        } else {
+            Write-Output "(Clipboard is empty or contains non-text data)"
+        }
+        return $clip
+    } catch {
+        Write-Output "WARNING: Clipboard capture failed - $_"
+        return $null
+    }
+}
+
+# Captures mapped network drives and active SMB shares.  May reveal
+# connections to other machines (the second VM) or exfiltration targets.
+function Get-MappedDrivesAndShares {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting Mapped Drives & Network Shares ==="
+    $items = @()
+
+    # Mapped drives (net use)
+    try {
+        Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayRoot } | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Type       = 'MappedDrive'
+                    Name       = $_.Name
+                    Root       = $_.DisplayRoot
+                    UsedGB     = [math]::Round(($_.Used / 1GB), 2)
+                    FreeGB     = [math]::Round(($_.Free / 1GB), 2)
+                }
+            }
+    } catch { }
+
+    # SMB shares hosted on this machine
+    try {
+        Get-SmbShare -ErrorAction SilentlyContinue | ForEach-Object {
+            $items += [pscustomobject]@{
+                Type       = 'SMBShare'
+                Name       = $_.Name
+                Root       = $_.Path
+                UsedGB     = $null
+                FreeGB     = $null
+            }
+        }
+    } catch { }
+
+    # Active SMB sessions (who is connected TO us)
+    try {
+        Get-SmbSession -ErrorAction SilentlyContinue | ForEach-Object {
+            $items += [pscustomobject]@{
+                Type       = 'ActiveSMBSession'
+                Name       = $_.ClientUserName
+                Root       = $_.ClientComputerName
+                UsedGB     = $null
+                FreeGB     = $null
+            }
+        }
+    } catch { }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\mapped_drives_shares.csv" -NoTypeInformation
+        Write-Output "Mapped drives/shares saved to: $OutputPath\mapped_drives_shares.csv"
+    } else {
+        Write-Output "(No mapped drives or shares found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# COMMAND HISTORY & USER ACTIONS
+# ============================================================================
+
+# Retrieves PowerShell console history files for all users.
+# Shows what commands the suspect executed, which could reveal
+# reconnaissance, data collection, or scripting of extortion tools.
+function Get-PowerShellHistory {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting PowerShell Command History ==="
+    $items = @()
+
+    # PSReadLine history for each user profile
+    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    foreach ($prof in $profiles) {
+        $histPath = Join-Path $prof.FullName 'AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt'
+        if (Test-Path $histPath) {
+            try {
+                $lines = Get-Content -Path $histPath -ErrorAction SilentlyContinue
+                $lineNum = 0
+                foreach ($line in $lines) {
+                    $lineNum++
+                    $items += [pscustomobject]@{
+                        User    = $prof.Name
+                        LineNum = $lineNum
+                        Command = $line
+                        Source  = 'PSReadLine'
+                    }
+                }
+                # Also copy the raw file for evidence
+                $destFile = Join-Path $OutputPath "ps_history_$($prof.Name).txt"
+                Copy-Item -Path $histPath -Destination $destFile -ErrorAction SilentlyContinue
+            } catch {
+                Write-Output "WARNING: Could not read PS history for $($prof.Name) - $_"
+            }
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\powershell_history.csv" -NoTypeInformation
+        Write-Output "PowerShell history saved to: $OutputPath\powershell_history.csv"
+    } else {
+        Write-Output "(No PowerShell history files found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# REMOTE ACCESS / INTER-VM LINKING
+# ============================================================================
+
+# Collects RDP-related artefacts: recent RDP connections from registry,
+# active logon sessions, and RDP cache files.  Critical for proving
+# the suspect connected the two VMs together.
+function Get-RDPAndRemoteSessions {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting RDP & Remote Session Artifacts ==="
+    $items = @()
+
+    # Recent RDP connections (Terminal Server Client)
+    $rdpServersKey = 'HKCU:\Software\Microsoft\Terminal Server Client\Servers'
+    if (Test-Path $rdpServersKey) {
+        try {
+            Get-ChildItem -Path $rdpServersKey -ErrorAction SilentlyContinue | ForEach-Object {
+                $props = Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue
+                $items += [pscustomobject]@{
+                    Type     = 'RDP_RecentServer'
+                    Target   = $_.PSChildName
+                    Username = $props.UsernameHint
+                    Detail   = $null
+                }
+            }
+        } catch { }
+    }
+
+    # Default RDP connection settings
+    $rdpDefault = 'HKCU:\Software\Microsoft\Terminal Server Client\Default'
+    if (Test-Path $rdpDefault) {
+        try {
+            $def = Get-ItemProperty -Path $rdpDefault -ErrorAction SilentlyContinue
+            $def.PSObject.Properties | Where-Object { $_.Name -like 'MRU*' } | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Type     = 'RDP_MRU'
+                    Target   = $_.Value
+                    Username = $null
+                    Detail   = $_.Name
+                }
+            }
+        } catch { }
+    }
+
+    # Active logon sessions (qwinsta/query user)
+    try {
+        $sessions = qwinsta 2>$null
+        if ($sessions) {
+            foreach ($line in $sessions) {
+                if ($line -match '^\s*([\w>]+)\s+(\S+)?\s+(\d+)\s+(\S+)') {
+                    $items += [pscustomobject]@{
+                        Type     = 'ActiveSession'
+                        Target   = $Matches[1]
+                        Username = $Matches[2]
+                        Detail   = "SessionId=$($Matches[3]) State=$($Matches[4])"
+                    }
+                }
+            }
+        }
+    } catch { }
+
+    # RDP bitmap cache files (evidence of remote desktop activity)
+    $rdpCacheDirs = @(
+        "$env:LOCALAPPDATA\Microsoft\Terminal Server Client\Cache"
+    )
+    foreach ($dir in $rdpCacheDirs) {
+        if (Test-Path $dir) {
+            Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Type     = 'RDP_CacheFile'
+                    Target   = $_.Name
+                    Username = $null
+                    Detail   = "$([math]::Round($_.Length / 1KB, 2)) KB - Modified: $($_.LastWriteTime)"
+                }
+            }
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\rdp_remote_sessions.csv" -NoTypeInformation
+        Write-Output "RDP/remote session data saved to: $OutputPath\rdp_remote_sessions.csv"
+    } else {
+        Write-Output "(No RDP or remote session artifacts found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# MEMORY ANALYSIS (POST-ACQUISITION)
+# ============================================================================
+
+# Performs a basic string extraction from the RAM dump to search for
+# IPs, hostnames, email addresses, URLs, and bitcoin addresses that
+# might link this VM to the second machine or to extortion comms.
+function Get-MemoryStrings {
+    param(
+        [string]$OutputPath,
+        [string]$RamDumpPath
+    )
+
+    Write-Output "=== Extracting Investigative Strings from RAM Dump ==="
+
+    if (-not $RamDumpPath -or -not (Test-Path $RamDumpPath)) {
+        Write-Output "(No RAM dump available for string extraction)"
+        return $null
+    }
+
+    $results = @{
+        IPs      = @()
+        Emails   = @()
+        URLs     = @()
+        Bitcoin  = @()
+    }
+
+    try {
+        # Read the dump in chunks and extract ASCII strings (min length 6)
+        $reader = [System.IO.File]::OpenRead($RamDumpPath)
+        $bufferSize = 10MB
+        $buffer  = New-Object byte[] $bufferSize
+        $allStrings = New-Object System.Collections.Generic.HashSet[string]
+
+        Write-Output "Reading RAM dump ($([math]::Round((Get-Item $RamDumpPath).Length / 1MB)) MB) ..."
+
+        while (($bytesRead = $reader.Read($buffer, 0, $bufferSize)) -gt 0) {
+            # Extract printable ASCII runs of 6+ characters
+            $sb = New-Object System.Text.StringBuilder
+            for ($i = 0; $i -lt $bytesRead; $i++) {
+                $b = $buffer[$i]
+                if ($b -ge 0x20 -and $b -le 0x7E) {
+                    [void]$sb.Append([char]$b)
+                } else {
+                    if ($sb.Length -ge 6) {
+                        [void]$allStrings.Add($sb.ToString())
+                    }
+                    [void]$sb.Clear()
+                }
+            }
+            if ($sb.Length -ge 6) {
+                [void]$allStrings.Add($sb.ToString())
+            }
+        }
+        $reader.Close()
+
+        Write-Output "Extracted $($allStrings.Count) unique strings, searching for IOCs..."
+
+        # Pattern matching
+        foreach ($s in $allStrings) {
+            # IPv4 addresses (non-loopback, non-broadcast)
+            if ($s -match '\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b') {
+                $ip = $Matches[1]
+                if ($ip -notmatch '^(127\.|0\.|255\.|224\.)') {
+                    $results.IPs += $ip
+                }
+            }
+            # Email addresses
+            if ($s -match '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}') {
+                $results.Emails += $Matches[0]
+            }
+            # URLs
+            if ($s -match 'https?://[^\s"<>]{5,}') {
+                $results.URLs += $Matches[0]
+            }
+            # Bitcoin addresses (basic pattern)
+            if ($s -match '\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b') {
+                $results.Bitcoin += $Matches[0]
+            }
+        }
+
+        # Deduplicate
+        $results.IPs     = @($results.IPs     | Sort-Object -Unique)
+        $results.Emails  = @($results.Emails  | Sort-Object -Unique)
+        $results.URLs    = @($results.URLs    | Sort-Object -Unique | Select-Object -First 500)
+        $results.Bitcoin = @($results.Bitcoin | Sort-Object -Unique)
+
+        # Build export objects
+        $export = @()
+        foreach ($ip    in $results.IPs)     { $export += [pscustomobject]@{ Category='IP Address';      Value=$ip } }
+        foreach ($email in $results.Emails)  { $export += [pscustomobject]@{ Category='Email Address';   Value=$email } }
+        foreach ($url   in $results.URLs)    { $export += [pscustomobject]@{ Category='URL';             Value=$url } }
+        foreach ($btc   in $results.Bitcoin) { $export += [pscustomobject]@{ Category='Bitcoin Address'; Value=$btc } }
+
+        if ($export.Count -gt 0) {
+            $export | Export-Csv "$OutputPath\memory_strings.csv" -NoTypeInformation
+            Write-Output "Memory strings saved to: $OutputPath\memory_strings.csv"
+            Write-Output "  IPs: $($results.IPs.Count) | Emails: $($results.Emails.Count) | URLs: $($results.URLs.Count) | Bitcoin: $($results.Bitcoin.Count)"
+        } else {
+            Write-Output "(No IOC strings extracted from RAM dump)"
+        }
+        return $export
+
+    } catch {
+        Write-Output "ERROR during memory string extraction: $_"
+        return $null
+    }
+}
+
+# ============================================================================
+# BROWSER ARTIFACTS & DOWNLOADS
+# ============================================================================
 
 function Get-BrowserArtifactsAndDownloads {
     param(

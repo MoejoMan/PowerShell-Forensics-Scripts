@@ -19,6 +19,19 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 - Downloads listing + best-effort browser history DB copy (Chrome/Edge)
 - Event log triage (Security/System/Application, recent days)
 - WMI persistence survey (filters/consumers/bindings)
+- Alternate Data Stream (ADS) scanning — hidden data in NTFS
+- Hidden & system file detection in user-writable directories
+- Encrypted volume / container detection (BitLocker, VeraCrypt, TrueCrypt)
+- Zone.Identifier download origin tracking (URL source for every downloaded file)
+- Recent file activity / MRU lists (RecentDocs, TypedPaths, RunMRU)
+- USB device history (USBSTOR registry — evidence of data exfiltration)
+- Recycle Bin contents (deleted files the suspect tried to destroy)
+- DNS client cache (volatile — domains recently resolved)
+- Clipboard text capture (volatile — passwords, bitcoin addresses, etc.)
+- Mapped drives & SMB shares (network shares, inbound sessions)
+- PowerShell command history (PSReadLine per-user ConsoleHost_history.txt)
+- RDP & remote session artifacts (recent servers, cache files, active sessions)
+- Memory string extraction (IPs, emails, URLs, bitcoin addresses from RAM dump)
 - HTML report summary of results
 
 ## Project Structure
@@ -78,11 +91,16 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 4. Autoruns, browser artifacts, downloads (persistence/user activity)
 5. Event log triage (Security/System/Application, last 3 days)
 6. WMI persistence survey (filters/consumers/bindings)
-7. SHA256 hashing of all output files (integrity)
-8. HTML report generation
+7. Anti-forensics scan: ADS, hidden files, encrypted volumes
+8. File provenance: Zone.Identifier origins, recent file activity, USB history, Recycle Bin
+9. Volatile capture: DNS cache, clipboard, mapped drives/shares
+10. Command history & remote access: PowerShell history, RDP sessions
+11. SHA256 hashing of all output files (integrity)
+12. Memory string extraction (IPs, emails, URLs, bitcoin from RAM dump)
+13. HTML report generation
 
 ### functions.ps1
-**Modular forensic functions (15 total):**
+**Modular forensic functions (27 total):**
 
 | Function | Purpose |
 |----------|---------|
@@ -100,6 +118,19 @@ Orchestrator script that imports `functions.ps1` and runs every collector in ord
 | `Get-BrowserArtifactsAndDownloads` | Downloads listing + Chrome/Edge history copy |
 | `Get-EventLogTriage` | Recent Security/System/Application events |
 | `Get-WmiPersistence` | WMI event filters/consumers/bindings |
+| `Get-AlternateDataStreams` | NTFS ADS scan (hidden data on files) |
+| `Get-HiddenFiles` | Hidden/system files in user-writable dirs |
+| `Get-EncryptedVolumeDetection` | BitLocker, VeraCrypt, TrueCrypt containers |
+| `Get-ZoneIdentifierInfo` | Download origin URLs (Zone.Identifier ADS) |
+| `Get-RecentFileActivity` | RecentDocs, TypedPaths, RunMRU registry |
+| `Get-USBDeviceHistory` | USBSTOR registry + mounted removable drives |
+| `Get-RecycleBinContents` | Deleted files in Recycle Bin |
+| `Get-DNSCache` | DNS client cache (volatile) |
+| `Get-ClipboardContents` | Current clipboard text (volatile) |
+| `Get-MappedDrivesAndShares` | Mapped drives, SMB shares, active sessions |
+| `Get-PowerShellHistory` | PSReadLine ConsoleHost_history per user |
+| `Get-RDPAndRemoteSessions` | RDP recent servers, cache, active sessions |
+| `Get-MemoryStrings` | IP/email/URL/bitcoin extraction from RAM |
 | `Get-FileHashes` | SHA256 hashes of output files |
 | `New-HTMLReport` | Builds the HTML summary report |
 
@@ -111,17 +142,24 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 |--------|---------|
 | `Get-Process` | Running process enumeration |
 | `Get-LocalUser` | User account discovery |
-| `Get-ChildItem` | File system enumeration (prefetch, downloads) |
+| `Get-ChildItem` | File system enumeration (prefetch, downloads, hidden files) |
 | `Get-NetTCPConnection` | TCP connection snapshot |
 | `Get-NetNeighbor` | ARP / neighbor table |
 | `Get-NetIPConfiguration` | Network adapter configuration |
-| `Get-ItemProperty` | Registry queries (autoruns, installed programs) |
+| `Get-ItemProperty` | Registry queries (autoruns, installed programs, USB, RDP, MRU) |
 | `Get-Service` | Windows service enumeration |
 | `Get-ScheduledTask` | Scheduled task enumeration |
 | `Get-AppxPackage` | UWP/Appx package listing |
 | `Get-WinEvent` | Event log triage (with `-FilterHashtable`) |
-| `Get-WmiObject` | WMI persistence survey |
+| `Get-WmiObject` | WMI persistence survey, USB removable drives |
 | `Get-FileHash` | SHA256 integrity hashing |
+| `Get-Item -Stream` | NTFS Alternate Data Stream detection |
+| `Get-Content -Stream Zone.Identifier` | Download origin / provenance tracking |
+| `Get-BitLockerVolume` | Encrypted volume detection |
+| `Get-DnsClientCache` | DNS cache (volatile) |
+| `Get-PSDrive` | Mapped network drives |
+| `Get-SmbShare` | SMB shares hosted locally |
+| `Get-SmbSession` | Active inbound SMB sessions |
 | `Start-Transcript` | Audit logging |
 | `Export-Csv` | Data export for analysis tools |
 | `ConvertTo-Html` | HTML report generation |
@@ -136,6 +174,9 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 | Transcript logs | `Transcript/<label>/` | Text log |
 | RAM dump | `Evidence/<label>/` | Raw memory image |
 | File hashes | `Evidence/<label>/hashes.csv` | CSV (SHA256) |
+| Clipboard capture | `Evidence/<label>/clipboard.txt` | Text |
+| PS history copies | `Evidence/<label>/ps_history_<user>.txt` | Text |
+| Memory IOCs | `Evidence/<label>/memory_strings.csv` | CSV |
 
 All outputs are git-ignored. Previous runs can be found in `Archive/` (also ignored).
 

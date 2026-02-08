@@ -101,6 +101,66 @@ try {
     Write-Output ""
 
     # ========================================================================
+    # PRIORITY 3: ANTI-FORENSICS & CONCEALMENT
+    # ========================================================================
+    Write-Output "PRIORITY 3: Scanning for hidden mechanisms & concealment"
+    Write-Output ""
+
+    $altDataStreams = Get-AlternateDataStreams -OutputPath $evidencePath
+    Write-Output ""
+
+    $hiddenFiles = Get-HiddenFiles -OutputPath $evidencePath
+    Write-Output ""
+
+    $encryptedVolumes = Get-EncryptedVolumeDetection -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
+    # PRIORITY 4: FILE PROVENANCE & USER ACTIVITY
+    # ========================================================================
+    Write-Output "PRIORITY 4: Collecting file provenance and user activity traces"
+    Write-Output ""
+
+    $zoneIdentifiers = Get-ZoneIdentifierInfo -OutputPath $evidencePath
+    Write-Output ""
+
+    $recentActivity = Get-RecentFileActivity -OutputPath $evidencePath
+    Write-Output ""
+
+    $usbDevices = Get-USBDeviceHistory -OutputPath $evidencePath
+    Write-Output ""
+
+    $recycleBin = Get-RecycleBinContents -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
+    # PRIORITY 5: VOLATILE / TIME-SENSITIVE
+    # ========================================================================
+    Write-Output "PRIORITY 5: Capturing volatile evidence (DNS cache, clipboard, sessions)"
+    Write-Output ""
+
+    $dnsCache = Get-DNSCache -OutputPath $evidencePath
+    Write-Output ""
+
+    $clipboardText = Get-ClipboardContents -OutputPath $evidencePath
+    Write-Output ""
+
+    $mappedDrives = Get-MappedDrivesAndShares -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
+    # PRIORITY 6: COMMAND HISTORY & REMOTE ACCESS
+    # ========================================================================
+    Write-Output "PRIORITY 6: Collecting command history and remote access artifacts"
+    Write-Output ""
+
+    $psHistory = Get-PowerShellHistory -OutputPath $evidencePath
+    Write-Output ""
+
+    $rdpSessions = Get-RDPAndRemoteSessions -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
     # FILE HASHING (INTEGRITY)
     # ========================================================================
     $hashes = $null
@@ -117,6 +177,18 @@ try {
         Write-Output ""
     } else {
         Write-Output "Skipping file hashes"
+        Write-Output ""
+    }
+
+    # ========================================================================
+    # MEMORY STRING ANALYSIS (requires RAM dump)
+    # ========================================================================
+    $memoryStrings = $null
+    if ($ramResult.Success -and $ramResult.Path) {
+        $memoryStrings = Get-MemoryStrings -OutputPath $evidencePath -RamDumpPath $ramResult.Path
+        Write-Output ""
+    } else {
+        Write-Output "Skipping memory string analysis (no RAM dump available)"
         Write-Output ""
     }
     
@@ -138,7 +210,20 @@ try {
                         -EventLogApplication $eventLogs.Application `
                         -WmiPersistence $wmiPersistence `
                         -RamResult $ramResult `
-                        -FileHashes $hashes
+                        -FileHashes $hashes `
+                        -AlternateDataStreams $altDataStreams `
+                        -HiddenFiles $hiddenFiles `
+                        -EncryptedVolumes $encryptedVolumes `
+                        -ZoneIdentifiers $zoneIdentifiers `
+                        -RecentActivity $recentActivity `
+                        -USBDevices $usbDevices `
+                        -RecycleBin $recycleBin `
+                        -DNSCache $dnsCache `
+                        -ClipboardText $clipboardText `
+                        -MappedDrives $mappedDrives `
+                        -PSHistory $psHistory `
+                        -RDPSessions $rdpSessions `
+                        -MemoryStrings $memoryStrings
     Write-Output ""
     
 } catch {
