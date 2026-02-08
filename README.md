@@ -1,36 +1,33 @@
-# PowerShell Forensics Scripts
+# PowerShell Forensics Scripts (WIP)
 
-PowerShell scripts for collecting forensic data from Windows systems during live investigations. Built for the digital forensics course (SCI721), following ACPO guidelines and ISO standards.
+PowerShell scripts for collecting forensic data from Windows systems during live investigations. Built for the digital forensics course (SCI721), following ACPO guidelines and ISO standards. **Work in progress:** still evolving collection coverage and reporting.
 
 ## What It Does
 
-Basically, these scripts automate the collection of evidence from a live Windows machine:
-- RAM dumps (before the machine gets shut down)
-- Running processes and what they're doing
-- User accounts on the system
-- Network connections (who's connected where)
-- Prefetch files (what was run recently)
-- Full disk imaging with FTK Imager
-- HTML reports with all the findings
+This toolkit automates a focused set of live-collection tasks on Windows:
+- RAM dump (via WinPmem, requires admin)
+- Running processes
+- Local user accounts
+- Installed programs (Uninstall keys + Appx)
+- Services
+- Scheduled tasks
+- TCP connections
+- Network neighbors (ARP)
+- Network adapter configuration
+- Prefetch files
+- HTML report summary of results
 
 ## Project Structure
 
 ```
 ├── main.ps1                    # Primary orchestrator script
 ├── functions.ps1               # Modular forensic functions
-├── awesomescript.ps1           # Full-featured collection script (reference)
-├── FTKImagerCLI.ps1            # Disk imaging via FTK Imager
-├── MediumTierScript.ps1        # RAM dump + process collection
-├── RAM_Winpmem.ps1             # WinPmem-based memory acquisition
-├── RAM_DumpIt.ps1              # DumpIt-based memory acquisition
-├── run.bat                      # Auto-elevating batch launcher
+├── run.bat                     # Auto-elevating batch launcher
 ├── bin/                         # External tools (WinPmem, etc.)
 ├── Evidence/                    # Output directory for collected data
-├── Transcript/                  # Execution logs (ACPO Principle 3 compliance)
-└── ForensicImage/              # FTK Imager output
+├── HTMLReport/                  # HTML report output
+└── Transcript/                  # Execution logs (ACPO Principle 3 compliance)
 ```
-
-## Quick Start
 
 ## How to Use
 
@@ -44,6 +41,18 @@ This handles admin elevation for you. Or if you want to run PowerShell directly:
 powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
 ```
 
+Optional switches:
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -SkipRamDump
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -SkipHashes
+```
+
+Optional environment variables:
+```powershell
+$env:SKIP_RAM_DUMP = "1"
+$env:SKIP_HASHES = "1"
+```
+
 Everything gets logged to the `Transcript/` folder with timestamps, and data gets saved as CSV files in `Evidence/`.
 
 ## Script Documentation
@@ -53,30 +62,25 @@ Orchestrator script that imports and calls all modular functions:
 - Calls `Get-ProcessList`
 - Calls `Get-UserList`
 - Calls `Get-PrefetchFiles`
+- Calls `Export-MemoryDump`
 
 ### functions.ps1
 **Modular forensic functions:**
 
+- `Export-MemoryDump` - Acquires RAM via WinPmem (admin required)
 - `Get-ProcessList` - Retrieves all running processes with CPU/memory data
 - `Get-UserList` - Enumerates local user accounts
 - `Get-PrefetchFiles` - Collects Windows prefetch files (execution timeline evidence)
+- `Get-NetworkConnections` - Captures TCP connections
+- `Get-NetworkNeighbors` - Captures ARP table
+- `New-HTMLReport` - Builds the HTML summary report
+- `Get-FileHashes` - Computes SHA256 hashes for output integrity
 
-### awesomescript.ps1
-Complete forensic collection pipeline including:
-- RAM dumping (WinPmem)
-- Process collection (exported to CSV)
-- User account enumeration
-- TCP/UDP connection analysis
-- Network neighbor (ARP) table capture
-- Prefetch file acquisition
-- Automated HTML report generation
+## Notes
 
-### FTKImagerCLI.ps1
-Disk imaging integration:
-- Creates forensic images in E01 format
-- Generates MD5/SHA1 hashes
-- Verifies image integrity
-- Supports case/evidence numbering
+- WinPmem must be present in `bin\winpmem\` or the project root.
+- HTML and CSV outputs are generated on each run in `HTMLReport\` and `Evidence\`.
+- Hashes are stored in `Evidence\hashes.csv`.
 
 ## PowerShell Cmdlets Used
 | Cmdlet | Purpose |
@@ -95,9 +99,10 @@ The scripts generate:
 - **CSV files** - Easy to open in Excel or import into forensic tools
 - **HTML reports** - For the actual submission/court
 - **Transcript logs** - Everything that ran, with timestamps
-- **E01 images** - Full disk images if using FTK Imager
+- **RAM dumps** - Raw memory image if WinPmem succeeds
+- **Hashes** - SHA256 hashes of output files for integrity
 
-Everything goes in the appropriate folder (`Evidence/`, `Transcript/`, `ForensicImage/`) so it's organized.
+Everything goes in the appropriate folder (`Evidence/`, `Transcript/`, `HTMLReport/`) so it's organized.
 
 ## The Assignment
 

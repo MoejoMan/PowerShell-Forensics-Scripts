@@ -1,7 +1,14 @@
 # Forensic Data Collection Script
+param(
+    [switch]$SkipRamDump,
+    [switch]$SkipHashes
+)
+
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
-# Import functions
+# ============================================================================
+# INITIALIZATION
+# ============================================================================
 . "$PSScriptRoot\functions.ps1"
 
 # Set up output paths
@@ -24,18 +31,31 @@ Write-Output "Start Time: $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')"
 Write-Output ""
 
 try {
-    # CRITICAL: Dump RAM first (volatile data - gets overwritten!)
+    # ========================================================================
+    # PRIORITY 1: VOLATILE DATA (RAM)
+    # ========================================================================
+    $skipRam = $SkipRamDump -or ($env:SKIP_RAM_DUMP -eq "1")
     Write-Output "PRIORITY 1: Capturing live RAM (volatile data)"
     Write-Output "If this fails, restart in forensic mode and try again"
     Write-Output ""
-    $ramSuccess = Export-MemoryDump -OutputPath $evidencePath
+
+    if ($skipRam) {
+        Write-Output "RAM dump skipped by operator"
+        $ramResult = [pscustomobject]@{ Success = $false; Path = $null; Error = "Skipped" }
+    } else {
+        $ramResult = Export-MemoryDump -OutputPath $evidencePath
+    }
     Write-Output ""
     
-    if (-not $ramSuccess) {
-        Write-Output "WARNING: RAM dump failed - continue with other collections"
+    if (-not $ramResult.Success) {
+        $ramError = $ramResult.Error
+        if (-not $ramError) { $ramError = "Unknown error" }
+        Write-Output "WARNING: RAM dump failed - continue with other collections ($ramError)"
     }
     
-    # Now collect non-volatile data
+    # ========================================================================
+    # PRIORITY 2: NON-VOLATILE DATA
+    # ========================================================================
     Write-Output "PRIORITY 2: Collecting system data"
     Write-Output ""
     
@@ -53,6 +73,38 @@ try {
     
     $prefetch = Get-PrefetchFiles -OutputPath $evidencePath
     Write-Output ""
+
+    $installedPrograms = Get-InstalledPrograms -OutputPath $evidencePath
+    Write-Output ""
+
+    $services = Get-ServicesList -OutputPath $evidencePath
+    Write-Output ""
+
+    $scheduledTasks = Get-ScheduledTasksList -OutputPath $evidencePath
+    Write-Output ""
+
+    $networkConfig = Get-NetworkConfig -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
+    # FILE HASHING (INTEGRITY)
+    # ========================================================================
+    $hashes = $null
+    if (-not ($SkipHashes -or ($env:SKIP_HASHES -eq "1"))) {
+        $filesToHash = Get-ChildItem -Path $evidencePath -File -ErrorAction SilentlyContinue
+        if ($filesToHash) {
+            Write-Output "=== Calculating File Hashes (SHA256) ==="
+            $hashes = Get-FileHashes -Files $filesToHash
+            if ($hashes) {
+                $hashes | Export-Csv "$evidencePath\hashes.csv" -NoTypeInformation
+                Write-Output "Hashes saved to: $evidencePath\hashes.csv"
+            }
+        }
+        Write-Output ""
+    } else {
+        Write-Output "Skipping file hashes"
+        Write-Output ""
+    }
     
     # Generate HTML report
     New-HTMLReport -OutputPath $htmlReportPath `
@@ -60,7 +112,13 @@ try {
                         -Users $users `
                         -TCPConnections $tcpConnections `
                         -Neighbors $neighbors `
-                        -PrefetchFiles $prefetch
+                        -PrefetchFiles $prefetch `
+                        -InstalledPrograms $installedPrograms `
+                        -Services $services `
+                        -ScheduledTasks $scheduledTasks `
+                        -NetworkConfig $networkConfig `
+                        -RamResult $ramResult `
+                        -FileHashes $hashes
     Write-Output ""
     
 } catch {

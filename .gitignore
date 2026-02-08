@@ -1,0 +1,20 @@
+# Forensic output files - generated during analysis
+Evidence/
+HTMLReport/
+Transcript/
+ForensicImage/
+Errors/
+
+# Raw memory dumps
+*.raw
+
+# CSV files with sensitive data
+*.csv
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Optional - exclude large binary files
+bin/winpmem/*.exe
+go-winpmem_amd64_1.0-rc2_signed.exe
