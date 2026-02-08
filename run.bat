@@ -3,7 +3,7 @@ REM Check if running as Administrator
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo Requesting Administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~0\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~0\" %*' -Verb RunAs"
     exit /b
 )
 
@@ -20,9 +20,18 @@ echo.
 REM Change to script directory
 cd /d "%~dp0"
 
+REM Build argument string from batch params (supports -VmLabel, -SkipRamDump, -SkipHashes)
+set "PS_ARGS="
+:parse
+if "%~1"=="" goto :run
+set "PS_ARGS=%PS_ARGS% %1"
+shift
+goto :parse
+
+:run
 REM Run the PowerShell script
 echo Starting data collection...
-powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1" %PS_ARGS%
 
 REM Keep window open so user can see results
 echo.

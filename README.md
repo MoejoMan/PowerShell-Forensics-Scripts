@@ -17,6 +17,8 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 - Network adapter configuration
 - Prefetch files
 - Downloads listing + best-effort browser history DB copy (Chrome/Edge)
+- Event log triage (Security/System/Application, recent days)
+- WMI persistence survey (filters/consumers/bindings)
 - HTML report summary of results
 
 ## Project Structure
@@ -24,105 +26,130 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 ```
 ├── main.ps1                    # Primary orchestrator script
 ├── functions.ps1               # Modular forensic functions
-├── run.bat                     # Auto-elevating batch launcher
+├── run.bat                     # Auto-elevating batch launcher (passes args)
 ├── bin/                         # External tools (WinPmem, etc.)
-├── Evidence/                    # Output directory for collected data
-├── HTMLReport/                  # HTML report output
-└── Transcript/                  # Execution logs (ACPO Principle 3 compliance)
+├── Evidence/<label>/            # Output directory for collected data
+├── HTMLReport/<label>/          # HTML report output
+├── Transcript/<label>/          # Execution logs (ACPO Principle 3 compliance)
+└── Archive/                     # Local archive of previous runs (git-ignored)
 ```
 
 ## How to Use
 
-Just run:
-```powershell
-.\run.bat
+### Quick start
+```
+run.bat
+```
+This handles admin elevation automatically.
+
+### With a VM label (keeps evidence separated per machine)
+```
+run.bat -VmLabel VM1
+run.bat -VmLabel HOST
+```
+Outputs land in `Evidence/VM1/`, `HTMLReport/VM1/`, etc.
+
+### Skip options
+```
+run.bat -SkipRamDump
+run.bat -SkipHashes
+run.bat -VmLabel VM2 -SkipRamDump
 ```
 
-This handles admin elevation for you. Or if you want to run PowerShell directly:
+### Direct PowerShell (no batch file)
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File "main.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -VmLabel "VM1" -SkipRamDump
 ```
 
-Optional switches:
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -SkipRamDump
-powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -SkipHashes
-```
-
-Optional environment variables:
+### Environment variables (alternative)
 ```powershell
 $env:SKIP_RAM_DUMP = "1"
 $env:SKIP_HASHES = "1"
 ```
 
-Everything gets logged to the `Transcript/` folder with timestamps, and data gets saved as CSV files in `Evidence/`.
-
 ## Script Documentation
 
 ### main.ps1
-Orchestrator script that imports and calls all modular functions:
-- Calls `Get-ProcessList`
-- Calls `Get-UserList`
-- Calls `Get-PrefetchFiles`
-- Calls `Export-MemoryDump`
+Orchestrator script that imports `functions.ps1` and runs every collector in order-of-volatility:
+1. RAM capture (volatile, Priority 1)
+2. Processes, users, TCP, ARP (volatile/semi-volatile)
+3. Prefetch, installed programs, services, tasks, network config (non-volatile)
+4. Autoruns, browser artifacts, downloads (persistence/user activity)
+5. Event log triage (Security/System/Application, last 3 days)
+6. WMI persistence survey (filters/consumers/bindings)
+7. SHA256 hashing of all output files (integrity)
+8. HTML report generation
 
 ### functions.ps1
-**Modular forensic functions:**
+**Modular forensic functions (15 total):**
 
-- `Export-MemoryDump` - Acquires RAM via WinPmem (admin required)
-- `Get-ProcessList` - Retrieves all running processes with CPU/memory data
-- `Get-UserList` - Enumerates local user accounts
-- `Get-PrefetchFiles` - Collects Windows prefetch files (execution timeline evidence)
-- `Get-NetworkConnections` - Captures TCP connections
-- `Get-NetworkNeighbors` - Captures ARP table
-- `New-HTMLReport` - Builds the HTML summary report
-- `Get-FileHashes` - Computes SHA256 hashes for output integrity
+| Function | Purpose |
+|----------|---------|
+| `Export-MemoryDump` | Acquires RAM via WinPmem (admin required) |
+| `Get-ProcessList` | Running processes with CPU/memory/path |
+| `Get-UserList` | Local user accounts and last logon |
+| `Get-NetworkConnections` | TCP connections (local/remote/state) |
+| `Get-NetworkNeighbors` | ARP table / network neighbors |
+| `Get-PrefetchFiles` | Windows prefetch (execution timeline) |
+| `Get-InstalledPrograms` | Uninstall registry + Appx packages |
+| `Get-ServicesList` | All Windows services with start type |
+| `Get-ScheduledTasksList` | Scheduled tasks with actions/authors |
+| `Get-NetworkConfig` | Adapter configuration (IP/DNS/gateway) |
+| `Get-Autoruns` | Run/RunOnce keys + startup folders |
+| `Get-BrowserArtifactsAndDownloads` | Downloads listing + Chrome/Edge history copy |
+| `Get-EventLogTriage` | Recent Security/System/Application events |
+| `Get-WmiPersistence` | WMI event filters/consumers/bindings |
+| `Get-FileHashes` | SHA256 hashes of output files |
+| `New-HTMLReport` | Builds the HTML summary report |
 
-## Notes
-
-- WinPmem must be present in `bin\winpmem\` or the project root.
-- HTML and CSV outputs are generated on each run in `HTMLReport\` and `Evidence\`.
-- Hashes are stored in `Evidence\hashes.csv`.
+### run.bat
+Auto-elevating batch launcher. Requests admin via UAC if not already elevated. Passes all arguments through to `main.ps1` (e.g. `-VmLabel`, `-SkipRamDump`).
 
 ## PowerShell Cmdlets Used
 | Cmdlet | Purpose |
 |--------|---------|
 | `Get-Process` | Running process enumeration |
 | `Get-LocalUser` | User account discovery |
-| `Get-ChildItem` | File system enumeration |
-| `Get-NetTCPConnection` | Network connection analysis |
+| `Get-ChildItem` | File system enumeration (prefetch, downloads) |
+| `Get-NetTCPConnection` | TCP connection snapshot |
+| `Get-NetNeighbor` | ARP / neighbor table |
+| `Get-NetIPConfiguration` | Network adapter configuration |
+| `Get-ItemProperty` | Registry queries (autoruns, installed programs) |
+| `Get-Service` | Windows service enumeration |
+| `Get-ScheduledTask` | Scheduled task enumeration |
+| `Get-AppxPackage` | UWP/Appx package listing |
+| `Get-WinEvent` | Event log triage (with `-FilterHashtable`) |
+| `Get-WmiObject` | WMI persistence survey |
+| `Get-FileHash` | SHA256 integrity hashing |
 | `Start-Transcript` | Audit logging |
-| `Export-Csv` | Data export for analysis |
-| `ConvertTo-Html` | Report generation |
+| `Export-Csv` | Data export for analysis tools |
+| `ConvertTo-Html` | HTML report generation |
 
 ## What Gets Output
 
-The scripts generate:
-- **CSV files** - Easy to open in Excel or import into forensic tools
-- **HTML reports** - For the actual submission/court
-- **Transcript logs** - Everything that ran, with timestamps
-- **RAM dumps** - Raw memory image if WinPmem succeeds
-- **Hashes** - SHA256 hashes of output files for integrity
+| Output | Location | Format |
+|--------|----------|--------|
+| Evidence CSVs | `Evidence/<label>/` | CSV (Excel/forensic tool import) |
+| Browser DB copies | `Evidence/<label>/browser_artifacts/` | SQLite |
+| HTML report | `HTMLReport/<label>/forensic_report.html` | HTML |
+| Transcript logs | `Transcript/<label>/` | Text log |
+| RAM dump | `Evidence/<label>/` | Raw memory image |
+| File hashes | `Evidence/<label>/hashes.csv` | CSV (SHA256) |
 
-Everything goes in the appropriate folder (`Evidence/`, `Transcript/`, `HTMLReport/`) so it's organized.
+All outputs are git-ignored. Previous runs can be found in `Archive/` (also ignored).
+
+## Notes
+
+- WinPmem must be present in `bin\winpmem\` or the project root.
+- Run as administrator for full collection (RAM, prefetch, security logs).
+- Event logs use `FilterHashtable` for performance — only pulls events from the last 3 days.
+- Hashing covers all output files including browser artifact subdirectory.
+- Each `-VmLabel` gets its own output tree so multi-machine evidence stays separated.
 
 ## The Assignment
 
 For SCI721, we have to do a live forensic investigation on a VM, collect evidence properly, document everything, and write an expert report for court. This toolkit handles the automated collection part — grab the RAM, processes, network stuff, etc. before the machine gets turned off. Then you analyze what you collected.
-
-## Usage Example
-
-```powershell
-# Import the functions
-. .\functions.ps1
-
-# Collect live system data
-Get-ProcessList
-Get-UserList
-Get-PrefetchFiles
-
-# Results displayed and logged to Transcript\ directory
-```
 
 ## License
 

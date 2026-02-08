@@ -216,6 +216,10 @@ function New-HTMLReport {
         [object]$NetworkConfig,
         [object]$Autoruns,
         [object]$BrowserArtifacts,
+        [object]$EventLogSecurity,
+        [object]$EventLogSystem,
+        [object]$EventLogApplication,
+        [object]$WmiPersistence,
         [object]$RamResult,
         [object]$FileHashes
     )
@@ -233,6 +237,10 @@ function New-HTMLReport {
         if ($ScheduledTasks) { $ScheduledTasks = @($ScheduledTasks | Where-Object { $_.TaskName } | Select-Object TaskName, TaskPath, State, LastRunTime, NextRunTime, Author, Principal, Actions) }
         if ($NetworkConfig) { $NetworkConfig = @($NetworkConfig | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway) }
         if ($Autoruns) { $Autoruns = @($Autoruns | Select-Object Location, Name, Command, Source) }
+        if ($EventLogSecurity) { $EventLogSecurity = @($EventLogSecurity | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
+        if ($EventLogSystem) { $EventLogSystem = @($EventLogSystem | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
+        if ($EventLogApplication) { $EventLogApplication = @($EventLogApplication | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
+        if ($WmiPersistence) { $WmiPersistence = @($WmiPersistence | Select-Object Type, Name, QueryOrClass, Consumer, CommandLine, OtherFields) }
         $downloads = $null
         $browserCopies = $null
         if ($BrowserArtifacts) {
@@ -303,6 +311,8 @@ function New-HTMLReport {
     <div class="card"><h4>Tasks</h4><p>$(@($ScheduledTasks).Count)</p></div>
     <div class="card"><h4>Autoruns</h4><p>$(@($Autoruns).Count)</p></div>
     <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
+    <div class="card"><h4>Security Events</h4><p>$(@($EventLogSecurity).Count)</p></div>
+    <div class="card"><h4>WMI Bindings</h4><p>$(@($WmiPersistence).Count)</p></div>
 </div>
 
 <details open>
@@ -417,6 +427,33 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
 "@
         }
 
+        if ($EventLogSecurity -or $EventLogSystem -or $EventLogApplication) {
+            $html += "<details><summary>Event Logs (recent triage)</summary>"
+
+            if (@($EventLogSecurity).Count -gt 0) {
+                $html += @"
+<h2>Security Log ($(@($EventLogSecurity).Count))</h2>
+$(@($EventLogSecurity) | ConvertTo-Html -Fragment)
+"@
+            }
+
+            if (@($EventLogSystem).Count -gt 0) {
+                $html += @"
+<h2>System Log ($(@($EventLogSystem).Count))</h2>
+$(@($EventLogSystem) | ConvertTo-Html -Fragment)
+"@
+            }
+
+            if (@($EventLogApplication).Count -gt 0) {
+                $html += @"
+<h2>Application Log ($(@($EventLogApplication).Count))</h2>
+$(@($EventLogApplication) | ConvertTo-Html -Fragment)
+"@
+            }
+
+            $html += "</details>"
+        }
+
         if ($Autoruns -and @($Autoruns).Count -gt 0) {
             $html += @"
 <details>
@@ -431,6 +468,15 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
 <details>
     <summary>Downloads Folder ($(@($downloads).Count) files)</summary>
     $(@($downloads) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($WmiPersistence -and @($WmiPersistence).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>WMI Persistence ($(@($WmiPersistence).Count))</summary>
+    $(@($WmiPersistence) | ConvertTo-Html -Fragment)
 </details>
 "@
         }
@@ -550,7 +596,7 @@ function Get-ScheduledTasksList {
             [pscustomobject]@{
                 TaskName      = $_.TaskName
                 TaskPath      = $_.TaskPath
-                State         = $info.State
+                State         = $_.State
                 LastRunTime   = $info.LastRunTime
                 NextRunTime   = $info.NextRunTime
                 Author        = $_.Author
@@ -586,6 +632,135 @@ function Get-NetworkConfig {
         Write-Output "ERROR collecting network configuration: $_"
         return $null
     }
+}
+
+function Get-EventLogTriage {
+    param(
+        [string]$OutputPath,
+        [int]$Days = 3
+    )
+
+    Write-Output "=== Collecting Event Log Triage ==="
+    $logs = @{
+        Security    = 'event_security.csv'
+        System      = 'event_system.csv'
+        Application = 'event_application.csv'
+    }
+
+    $results = @{}
+
+    $startTime = (Get-Date).AddDays(-$Days)
+
+    foreach ($logName in $logs.Keys) {
+        $target = Join-Path $OutputPath $logs[$logName]
+        try {
+            $events = Get-WinEvent -FilterHashtable @{
+                LogName   = $logName
+                StartTime = $startTime
+            } -ErrorAction SilentlyContinue |
+                Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
+
+            if ($events) {
+                $events | Export-Csv $target -NoTypeInformation
+                Write-Output "$logName events saved to: $target"
+            } else {
+                Write-Output "(No $logName events found in last $Days days)"
+            }
+
+            $results[$logName] = $events
+        } catch {
+            Write-Output "ERROR collecting $logName log: $_"
+            $results[$logName] = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Security    = $results.Security
+        System      = $results.System
+        Application = $results.Application
+    }
+}
+
+function Get-WmiPersistence {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting WMI persistence (filters/consumers/bindings) ==="
+    $items = @()
+
+    try {
+        $filters = Get-WmiObject -Namespace root\subscription -Class __EventFilter -ErrorAction SilentlyContinue
+        foreach ($f in $filters) {
+            $items += [pscustomobject]@{
+                Type        = 'EventFilter'
+                Name        = $f.Name
+                QueryOrClass= $f.Query
+                Consumer    = $null
+                CommandLine = $null
+                OtherFields = $f.EventNamespace
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Failed reading __EventFilter - $_"
+    }
+
+    try {
+        $cmdConsumers = Get-WmiObject -Namespace root\subscription -Class CommandLineEventConsumer -ErrorAction SilentlyContinue
+        foreach ($c in $cmdConsumers) {
+            $items += [pscustomobject]@{
+                Type        = 'CommandLineEventConsumer'
+                Name        = $c.Name
+                QueryOrClass= $null
+                Consumer    = $c.Name
+                CommandLine = $c.CommandLineTemplate
+                OtherFields = $c.WorkingDirectory
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Failed reading CommandLineEventConsumer - $_"
+    }
+
+    try {
+        $scriptConsumers = Get-WmiObject -Namespace root\subscription -Class ActiveScriptEventConsumer -ErrorAction SilentlyContinue
+        foreach ($c in $scriptConsumers) {
+            $items += [pscustomobject]@{
+                Type        = 'ActiveScriptEventConsumer'
+                Name        = $c.Name
+                QueryOrClass= $null
+                Consumer    = $c.Name
+                CommandLine = $c.ScriptText
+                OtherFields = $c.ScriptingEngine
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Failed reading ActiveScriptEventConsumer - $_"
+    }
+
+    try {
+        $bindings = Get-WmiObject -Namespace root\subscription -Class __FilterToConsumerBinding -ErrorAction SilentlyContinue
+        foreach ($b in $bindings) {
+            $items += [pscustomobject]@{
+                Type        = 'FilterToConsumerBinding'
+                Name        = $b.Name
+                QueryOrClass= $b.Filter
+                Consumer    = $b.Consumer
+                CommandLine = $null
+                OtherFields = $b.DeliveryQoS
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Failed reading __FilterToConsumerBinding - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\wmi_persistence.csv" -NoTypeInformation
+        Write-Output "WMI persistence saved to: $OutputPath\wmi_persistence.csv"
+    } else {
+        Write-Output "(No WMI persistence entries found)"
+    }
+
+    return $items
 }
 
 function Get-Autoruns {

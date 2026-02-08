@@ -94,12 +94,18 @@ try {
     $browserArtifacts = Get-BrowserArtifactsAndDownloads -OutputPath $evidencePath
     Write-Output ""
 
+    $eventLogs = Get-EventLogTriage -OutputPath $evidencePath -Days 3
+    Write-Output ""
+
+    $wmiPersistence = Get-WmiPersistence -OutputPath $evidencePath
+    Write-Output ""
+
     # ========================================================================
     # FILE HASHING (INTEGRITY)
     # ========================================================================
     $hashes = $null
     if (-not ($SkipHashes -or ($env:SKIP_HASHES -eq "1"))) {
-        $filesToHash = Get-ChildItem -Path $evidencePath -File -ErrorAction SilentlyContinue
+        $filesToHash = Get-ChildItem -Path $evidencePath -File -Recurse -ErrorAction SilentlyContinue
         if ($filesToHash) {
             Write-Output "=== Calculating File Hashes (SHA256) ==="
             $hashes = Get-FileHashes -Files $filesToHash
@@ -127,6 +133,10 @@ try {
                         -NetworkConfig $networkConfig `
                         -Autoruns $autoruns `
                         -BrowserArtifacts $browserArtifacts `
+                        -EventLogSecurity $eventLogs.Security `
+                        -EventLogSystem $eventLogs.System `
+                        -EventLogApplication $eventLogs.Application `
+                        -WmiPersistence $wmiPersistence `
                         -RamResult $ramResult `
                         -FileHashes $hashes
     Write-Output ""
