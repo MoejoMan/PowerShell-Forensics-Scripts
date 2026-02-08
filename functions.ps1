@@ -1000,7 +1000,6 @@ function Get-AlternateDataStreams {
         "$env:USERPROFILE\Desktop",
         "$env:USERPROFILE\Documents",
         "$env:USERPROFILE\Downloads",
-        "$env:APPDATA",
         "C:\Temp",
         "C:\Users\Public"
     )
@@ -1010,7 +1009,8 @@ function Get-AlternateDataStreams {
         try {
             # Get-Item -Stream * lists every stream; Zone.Identifier is normal,
             # but anything beyond :$DATA and Zone.Identifier is suspicious.
-            Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue |
+            # Depth-limited to 3 to avoid hanging on large directory trees.
+            Get-ChildItem -Path $dir -Recurse -Depth 3 -File -ErrorAction SilentlyContinue |
                 ForEach-Object {
                     $file = $_
                     try {
@@ -1052,16 +1052,18 @@ function Get-HiddenFiles {
     $items = @()
 
     $scanPaths = @(
-        "$env:USERPROFILE",
+        "$env:USERPROFILE\Desktop",
+        "$env:USERPROFILE\Documents",
+        "$env:USERPROFILE\Downloads",
         "C:\Temp",
-        "C:\Users\Public",
-        "C:\ProgramData"
+        "C:\Users\Public"
     )
 
     foreach ($dir in $scanPaths) {
         if (-not (Test-Path $dir)) { continue }
         try {
-            Get-ChildItem -Path $dir -Recurse -Force -File -ErrorAction SilentlyContinue |
+            # Depth-limited to 3 to keep scan time reasonable.
+            Get-ChildItem -Path $dir -Recurse -Depth 3 -Force -File -ErrorAction SilentlyContinue |
                 Where-Object {
                     ($_.Attributes -band [System.IO.FileAttributes]::Hidden) -or
                     ($_.Attributes -band [System.IO.FileAttributes]::System)
@@ -1121,7 +1123,7 @@ function Get-EncryptedVolumeDetection {
     foreach ($dir in $searchDirs) {
         if (-not (Test-Path $dir)) { continue }
         foreach ($ext in $containerExts) {
-            Get-ChildItem -Path $dir -Filter $ext -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-ChildItem -Path $dir -Filter $ext -Recurse -Depth 3 -Force -ErrorAction SilentlyContinue | ForEach-Object {
                 $items += [pscustomobject]@{
                     Type       = 'Container'
                     Identifier = $_.FullName
@@ -1178,7 +1180,8 @@ function Get-ZoneIdentifierInfo {
     foreach ($dir in $scanPaths) {
         if (-not (Test-Path $dir)) { continue }
         try {
-            Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+            # Depth-limited to 2 to keep scan time reasonable.
+            Get-ChildItem -Path $dir -Recurse -Depth 2 -File -ErrorAction SilentlyContinue | ForEach-Object {
                 try {
                     $zi = Get-Content -Path $_.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue
                     if ($zi) {
