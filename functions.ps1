@@ -1663,109 +1663,67 @@ function Get-RDPAndRemoteSessions {
 # MEMORY ANALYSIS (POST-ACQUISITION)
 # ============================================================================
 
-# Performs a basic string extraction from the RAM dump to search for
-# IPs, hostnames, email addresses, URLs, and bitcoin addresses that
-# might link this VM to the second machine or to extortion comms.
+# Logs the RAM dump details and advises the use of Volatility / strings.exe
+# for proper structured memory analysis.  PowerShell is not suited for
+# byte-level parsing of multi-GB raw dumps; purpose-built tools (Volatility,
+# Rekall, strings.exe) handle this orders of magnitude faster and produce
+# structured output (process trees, handles, injected code, etc.).
 function Get-MemoryStrings {
     param(
         [string]$OutputPath,
         [string]$RamDumpPath
     )
 
-    Write-Output "=== Extracting Investigative Strings from RAM Dump ==="
+    Write-Output "=== Memory Dump Analysis Note ==="
 
     if (-not $RamDumpPath -or -not (Test-Path $RamDumpPath)) {
-        Write-Output "(No RAM dump available for string extraction)"
+        Write-Output "(No RAM dump available)"
         return $null
     }
 
-    $results = @{
-        IPs      = @()
-        Emails   = @()
-        URLs     = @()
-        Bitcoin  = @()
-    }
+    $dumpItem = Get-Item $RamDumpPath
+    $sizeMB   = [math]::Round($dumpItem.Length / 1MB, 2)
 
-    try {
-        # Read the dump in chunks and extract ASCII strings (min length 6)
-        $reader = [System.IO.File]::OpenRead($RamDumpPath)
-        $bufferSize = 10MB
-        $buffer  = New-Object byte[] $bufferSize
-        $allStrings = New-Object System.Collections.Generic.HashSet[string]
+    Write-Output "RAM dump acquired: $($dumpItem.Name)"
+    Write-Output "  Size: $sizeMB MB"
+    Write-Output "  Path: $($dumpItem.FullName)"
+    Write-Output ""
+    Write-Output "RECOMMENDATION: Analyse this dump offline using Volatility 3 or strings.exe."
+    Write-Output "  Volatility:  vol.py -f `"$RamDumpPath`" windows.pslist / windows.netscan / windows.filescan"
+    Write-Output "  Strings:     strings.exe -n 6 `"$RamDumpPath`" | findstr /i `"@`" > emails.txt"
+    Write-Output ""
+    Write-Output "PowerShell is not practical for byte-level parsing of $sizeMB MB raw memory images."
 
-        Write-Output "Reading RAM dump ($([math]::Round((Get-Item $RamDumpPath).Length / 1MB)) MB) ..."
+    # Write the note to a file as well (so it appears in the evidence folder)
+    $note = @"
+MEMORY DUMP ANALYSIS NOTE
+==========================
+File:   $($dumpItem.Name)
+Size:   $sizeMB MB
+Path:   $($dumpItem.FullName)
+Hash:   (see hashes.csv)
 
-        while (($bytesRead = $reader.Read($buffer, 0, $bufferSize)) -gt 0) {
-            # Extract printable ASCII runs of 6+ characters
-            $sb = New-Object System.Text.StringBuilder
-            for ($i = 0; $i -lt $bytesRead; $i++) {
-                $b = $buffer[$i]
-                if ($b -ge 0x20 -and $b -le 0x7E) {
-                    [void]$sb.Append([char]$b)
-                } else {
-                    if ($sb.Length -ge 6) {
-                        [void]$allStrings.Add($sb.ToString())
-                    }
-                    [void]$sb.Clear()
-                }
-            }
-            if ($sb.Length -ge 6) {
-                [void]$allStrings.Add($sb.ToString())
-            }
-        }
-        $reader.Close()
+This RAM dump was acquired during live collection and should be analysed
+using a purpose-built memory forensics tool:
 
-        Write-Output "Extracted $($allStrings.Count) unique strings, searching for IOCs..."
+  Volatility 3 (recommended):
+    vol.py -f "$RamDumpPath" windows.pslist
+    vol.py -f "$RamDumpPath" windows.netscan
+    vol.py -f "$RamDumpPath" windows.filescan
+    vol.py -f "$RamDumpPath" windows.cmdline
 
-        # Pattern matching
-        foreach ($s in $allStrings) {
-            # IPv4 addresses (non-loopback, non-broadcast)
-            if ($s -match '\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b') {
-                $ip = $Matches[1]
-                if ($ip -notmatch '^(127\.|0\.|255\.|224\.)') {
-                    $results.IPs += $ip
-                }
-            }
-            # Email addresses
-            if ($s -match '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}') {
-                $results.Emails += $Matches[0]
-            }
-            # URLs
-            if ($s -match 'https?://[^\s"<>]{5,}') {
-                $results.URLs += $Matches[0]
-            }
-            # Bitcoin addresses (basic pattern)
-            if ($s -match '\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b') {
-                $results.Bitcoin += $Matches[0]
-            }
-        }
+  SysInternals strings.exe:
+    strings.exe -n 6 "$RamDumpPath" | findstr /i "@" > emails.txt
+    strings.exe -n 6 "$RamDumpPath" | findstr /i "http" > urls.txt
 
-        # Deduplicate
-        $results.IPs     = @($results.IPs     | Sort-Object -Unique)
-        $results.Emails  = @($results.Emails  | Sort-Object -Unique)
-        $results.URLs    = @($results.URLs    | Sort-Object -Unique | Select-Object -First 500)
-        $results.Bitcoin = @($results.Bitcoin | Sort-Object -Unique)
+PowerShell is not suited to byte-level parsing of large raw memory images.
+The dump is preserved with SHA256 integrity hashing for chain of custody.
+"@
 
-        # Build export objects
-        $export = @()
-        foreach ($ip    in $results.IPs)     { $export += [pscustomobject]@{ Category='IP Address';      Value=$ip } }
-        foreach ($email in $results.Emails)  { $export += [pscustomobject]@{ Category='Email Address';   Value=$email } }
-        foreach ($url   in $results.URLs)    { $export += [pscustomobject]@{ Category='URL';             Value=$url } }
-        foreach ($btc   in $results.Bitcoin) { $export += [pscustomobject]@{ Category='Bitcoin Address'; Value=$btc } }
+    $note | Out-File "$OutputPath\memory_analysis_note.txt" -Encoding UTF8
+    Write-Output "Note saved to: $OutputPath\memory_analysis_note.txt"
 
-        if ($export.Count -gt 0) {
-            $export | Export-Csv "$OutputPath\memory_strings.csv" -NoTypeInformation
-            Write-Output "Memory strings saved to: $OutputPath\memory_strings.csv"
-            Write-Output "  IPs: $($results.IPs.Count) | Emails: $($results.Emails.Count) | URLs: $($results.URLs.Count) | Bitcoin: $($results.Bitcoin.Count)"
-        } else {
-            Write-Output "(No IOC strings extracted from RAM dump)"
-        }
-        return $export
-
-    } catch {
-        Write-Output "ERROR during memory string extraction: $_"
-        return $null
-    }
+    return $null
 }
 
 # ============================================================================
