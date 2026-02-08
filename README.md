@@ -11,10 +11,12 @@ This toolkit automates a focused set of live-collection tasks on Windows:
 - Installed programs (Uninstall keys + Appx)
 - Services
 - Scheduled tasks
+- Autoruns (Run/RunOnce, Startup folders)
 - TCP connections
 - Network neighbors (ARP)
 - Network adapter configuration
 - Prefetch files
+- Downloads listing + best-effort browser history DB copy (Chrome/Edge)
 - HTML report summary of results
 
 ## Project Structure

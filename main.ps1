@@ -1,7 +1,8 @@
 # Forensic Data Collection Script
 param(
     [switch]$SkipRamDump,
-    [switch]$SkipHashes
+    [switch]$SkipHashes,
+    [string]$VmLabel = "Default"
 )
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -11,11 +12,12 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 # ============================================================================
 . "$PSScriptRoot\functions.ps1"
 
-# Set up output paths
+# Set up output paths (per-VM label to keep evidence separated)
 $scriptRoot = $PSScriptRoot
-$evidencePath = "$scriptRoot\Evidence"
-$transcriptPath = "$scriptRoot\Transcript"
-$htmlReportPath = "$scriptRoot\HTMLReport"
+$safeLabel = ($VmLabel -replace '[^a-zA-Z0-9_-]', '_')
+$evidencePath = "$scriptRoot\Evidence\$safeLabel"
+$transcriptPath = "$scriptRoot\Transcript\$safeLabel"
+$htmlReportPath = "$scriptRoot\HTMLReport\$safeLabel"
 
 # Create output directories
 New-Item -ItemType Directory -Path $evidencePath, $transcriptPath, $htmlReportPath -Force | Out-Null
@@ -86,6 +88,12 @@ try {
     $networkConfig = Get-NetworkConfig -OutputPath $evidencePath
     Write-Output ""
 
+    $autoruns = Get-Autoruns -OutputPath $evidencePath
+    Write-Output ""
+
+    $browserArtifacts = Get-BrowserArtifactsAndDownloads -OutputPath $evidencePath
+    Write-Output ""
+
     # ========================================================================
     # FILE HASHING (INTEGRITY)
     # ========================================================================
@@ -117,6 +125,8 @@ try {
                         -Services $services `
                         -ScheduledTasks $scheduledTasks `
                         -NetworkConfig $networkConfig `
+                        -Autoruns $autoruns `
+                        -BrowserArtifacts $browserArtifacts `
                         -RamResult $ramResult `
                         -FileHashes $hashes
     Write-Output ""

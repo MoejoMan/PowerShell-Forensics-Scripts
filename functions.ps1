@@ -214,6 +214,8 @@ function New-HTMLReport {
         [object]$Services,
         [object]$ScheduledTasks,
         [object]$NetworkConfig,
+        [object]$Autoruns,
+        [object]$BrowserArtifacts,
         [object]$RamResult,
         [object]$FileHashes
     )
@@ -230,6 +232,13 @@ function New-HTMLReport {
         if ($Services) { $Services = @($Services | Where-Object { $_.Name } | Select-Object Name, DisplayName, Status, StartType) }
         if ($ScheduledTasks) { $ScheduledTasks = @($ScheduledTasks | Where-Object { $_.TaskName } | Select-Object TaskName, TaskPath, State, LastRunTime, NextRunTime, Author, Principal, Actions) }
         if ($NetworkConfig) { $NetworkConfig = @($NetworkConfig | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway) }
+        if ($Autoruns) { $Autoruns = @($Autoruns | Select-Object Location, Name, Command, Source) }
+        $downloads = $null
+        $browserCopies = $null
+        if ($BrowserArtifacts) {
+            $downloads = @($BrowserArtifacts.Downloads)
+            $browserCopies = @($BrowserArtifacts.BrowserCopies)
+        }
         
         $ramStatus = "Not Attempted"
         $ramDetails = ""
@@ -292,6 +301,8 @@ function New-HTMLReport {
     <div class="card"><h4>Installed Apps</h4><p>$(@($InstalledPrograms).Count)</p></div>
     <div class="card"><h4>Services</h4><p>$(@($Services).Count)</p></div>
     <div class="card"><h4>Tasks</h4><p>$(@($ScheduledTasks).Count)</p></div>
+    <div class="card"><h4>Autoruns</h4><p>$(@($Autoruns).Count)</p></div>
+    <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
 </div>
 
 <details open>
@@ -402,6 +413,33 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
 <details>
     <summary>Network Configuration ($(@($NetworkConfig).Count))</summary>
     $(@($NetworkConfig) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($Autoruns -and @($Autoruns).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Autoruns ($(@($Autoruns).Count))</summary>
+    $(@($Autoruns) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($downloads -and @($downloads).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Downloads Folder ($(@($downloads).Count) files)</summary>
+    $(@($downloads) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($browserCopies -and @($browserCopies).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Browser Artifacts Copy Status ($(@($browserCopies).Count))</summary>
+    $(@($browserCopies) | ConvertTo-Html -Fragment)
 </details>
 "@
         }
@@ -547,5 +585,120 @@ function Get-NetworkConfig {
     } catch {
         Write-Output "ERROR collecting network configuration: $_"
         return $null
+    }
+}
+
+function Get-Autoruns {
+    param(
+        [string]$OutputPath
+    )
+    Write-Output "=== Collecting Autoruns (Run keys & Startup folders) ==="
+    $items = @()
+
+    $runPaths = @(
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce',
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run',
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+    )
+
+    foreach ($path in $runPaths) {
+        if (Test-Path $path) {
+            try {
+                $props = Get-ItemProperty -Path $path -ErrorAction SilentlyContinue
+                $props.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' } | ForEach-Object {
+                    $items += [pscustomobject]@{
+                        Location = $path
+                        Name     = $_.Name
+                        Command  = $_.Value
+                        Source   = 'Registry'
+                    }
+                }
+            } catch {
+                Write-Output "WARNING: Failed to read $path - $_"
+            }
+        }
+    }
+
+    $startupDirs = @(
+        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup",
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+    )
+
+    foreach ($dir in $startupDirs) {
+        if (Test-Path $dir) {
+            try {
+                Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | ForEach-Object {
+                    $items += [pscustomobject]@{
+                        Location = $dir
+                        Name     = $_.Name
+                        Command  = $_.FullName
+                        Source   = 'StartupFolder'
+                    }
+                }
+            } catch {
+                Write-Output "WARNING: Failed to read $dir - $_"
+            }
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\autoruns.csv" -NoTypeInformation
+        Write-Output "Autoruns saved to: $OutputPath\autoruns.csv"
+    } else {
+        Write-Output "(No autoruns found)"
+    }
+    return $items
+}
+
+function Get-BrowserArtifactsAndDownloads {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "=== Collecting Browser Artifacts & Downloads (best effort) ==="
+    $browserOut = Join-Path $OutputPath "browser_artifacts"
+    New-Item -ItemType Directory -Path $browserOut -Force | Out-Null
+
+    $downloadsFolder = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Downloads'
+    $downloads = $null
+    if (Test-Path $downloadsFolder) {
+        try {
+            $downloads = Get-ChildItem -Path $downloadsFolder -File -ErrorAction SilentlyContinue | Select-Object Name, FullName, Length, LastWriteTime
+            if ($downloads) {
+                $downloads | Export-Csv "$OutputPath\downloads.csv" -NoTypeInformation
+                Write-Output "Downloads listing saved to: $OutputPath\downloads.csv"
+            }
+        } catch {
+            Write-Output "WARNING: Failed to enumerate Downloads - $_"
+        }
+    } else {
+        Write-Output "(Downloads folder not found)"
+    }
+
+    $copies = @()
+    $targets = @(
+        @{ Name='Chrome-History'; Path=Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\Default\History' },
+        @{ Name='Edge-History'; Path=Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data\Default\History' }
+    )
+
+    foreach ($t in $targets) {
+        $source = $t.Path
+        if (Test-Path $source) {
+            $dest = Join-Path $browserOut ($t.Name + '.sqlite')
+            try {
+                Copy-Item -Path $source -Destination $dest -ErrorAction Stop
+                $copies += [pscustomobject]@{ Artifact=$t.Name; Path=$dest; Status='Copied' }
+            } catch {
+                $copies += [pscustomobject]@{ Artifact=$t.Name; Path=$source; Status="Copy failed: $_" }
+            }
+        } else {
+            $copies += [pscustomobject]@{ Artifact=$t.Name; Path=$source; Status='Not found' }
+        }
+    }
+
+    return [pscustomobject]@{
+        Downloads = $downloads
+        BrowserCopies = $copies
     }
 }
