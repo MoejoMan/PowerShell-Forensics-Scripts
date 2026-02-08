@@ -5,6 +5,9 @@ Transcript/
 ForensicImage/
 Errors/
 
+# Local archives of collected evidence (kept for reference, not tracked)
+Archive/
+
 # Raw memory dumps
 *.raw
 
