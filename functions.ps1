@@ -242,7 +242,14 @@ function New-HTMLReport {
         [object]$UserAssist,
         [object]$HostsFileEntries,
         [object]$FirewallRules,
-        [object]$DefenderExclusions
+        [object]$DefenderExclusions,
+        # --- deep-dive sections ---
+        [object]$WiFiProfiles,
+        [object]$WallpaperInfo,
+        [object]$BrowserBookmarks,
+        [object]$BrowserSearchHistory,
+        [object]$WindowsTimeline,
+        [object]$GameArtifacts
     )
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
@@ -282,6 +289,12 @@ function New-HTMLReport {
         if ($HostsFileEntries) { $HostsFileEntries = @($HostsFileEntries | Where-Object { $_.IP } | Select-Object IP, Hostname, Status) }
         if ($FirewallRules) { $FirewallRules = @($FirewallRules | Where-Object { $_.DisplayName } | Select-Object DisplayName, Direction, Action, Protocol, LocalPort, RemoteAddress, Enabled, Profile) }
         if ($DefenderExclusions) { $DefenderExclusions = @($DefenderExclusions | Where-Object { $_.Type } | Select-Object Type, Value, Risk) }
+        if ($WiFiProfiles) { $WiFiProfiles = @($WiFiProfiles | Where-Object { $_.ProfileName } | Select-Object ProfileName, Authentication, Encryption, ConnectionMode, AutoConnect) }
+        if ($WallpaperInfo) { $WallpaperInfo = @($WallpaperInfo | Where-Object { $_.Source } | Select-Object Source, Path, SizeKB, Modified) }
+        if ($BrowserBookmarks) { $BrowserBookmarks = @($BrowserBookmarks | Where-Object { $_.Name } | Select-Object Browser, Folder, Name, URL) }
+        if ($BrowserSearchHistory) { $BrowserSearchHistory = @($BrowserSearchHistory | Where-Object { $_.Query } | Select-Object Timestamp, Engine, Query) }
+        if ($WindowsTimeline) { $WindowsTimeline = @($WindowsTimeline | Where-Object { $_.Application } | Select-Object Timestamp, Application, DisplayText, ActivityType) }
+        if ($GameArtifacts) { $GameArtifacts = @($GameArtifacts | Where-Object { $_.Source } | Select-Object Source, Name, Detail, LastModified) }
 
         $downloads = $null
         $browserCopies = $null
@@ -742,6 +755,67 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
     <summary>Windows Defender Exclusions ($(@($DefenderExclusions).Count) - SUSPICIOUS)</summary>
     <p><em>Defender exclusions prevent scanning of specified paths, processes, or extensions. Attackers add exclusions to hide malware from detection.</em></p>
     $(@($DefenderExclusions) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        # --- New deep-dive sections ---
+        if ($WiFiProfiles -and @($WiFiProfiles).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Saved WiFi Profiles ($(@($WiFiProfiles).Count))</summary>
+    <p><em>All wireless networks the device has connected to. Reveals locations visited, personal hotspots used, and network history.</em></p>
+    $(@($WiFiProfiles) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($WallpaperInfo -and @($WallpaperInfo).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Desktop Wallpaper &amp; Theme ($(@($WallpaperInfo).Count))</summary>
+    <p><em>Current and cached desktop wallpaper information. Can reveal personal interests or inappropriate imagery.</em></p>
+    $(@($WallpaperInfo) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($BrowserBookmarks -and @($BrowserBookmarks).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Browser Bookmarks ($(@($BrowserBookmarks).Count))</summary>
+    <p><em>Saved bookmarks from Chrome and Edge browsers. Shows intentionally saved pages - stronger indicator of interest than browsing history.</em></p>
+    $(@($BrowserBookmarks) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($BrowserSearchHistory -and @($BrowserSearchHistory).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Browser Search History ($(@($BrowserSearchHistory).Count) queries)</summary>
+    <p><em>Google and Bing search queries extracted from browser URL history. Reveals the user's intentions, interests, and investigative behaviour.</em></p>
+    $(@($BrowserSearchHistory) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($WindowsTimeline -and @($WindowsTimeline).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Windows Activity Timeline ($(@($WindowsTimeline).Count))</summary>
+    <p><em>Windows Activity History from ActivitiesCache.db. Tracks which applications were used and when, including focus time.</em></p>
+    $(@($WindowsTimeline) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($GameArtifacts -and @($GameArtifacts).Count -gt 0) {
+            $html += @"
+<details>
+    <summary>Game &amp; Entertainment Artifacts ($(@($GameArtifacts).Count))</summary>
+    <p><em>Evidence of gaming activity from Steam, Rimworld, Minecraft, and other sources. Shows entertainment habits and time usage.</em></p>
+    $(@($GameArtifacts) | ConvertTo-Html -Fragment)
 </details>
 "@
         }
@@ -1285,11 +1359,14 @@ function Get-ZoneIdentifierInfo {
             # Depth-limited to 4 to balance coverage vs performance.
             Get-ChildItem -Path $dir -Recurse -Depth 4 -File -ErrorAction SilentlyContinue | ForEach-Object {
                 try {
-                    $zi = Get-Content -Path $_.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue
+                    $zi = Get-Content -Path $_.FullName -Stream Zone.Identifier -ErrorAction Ignore 2>$null
                     if ($zi) {
-                        $zoneId   = ($zi | Select-String 'ZoneId=(\d)').Matches | ForEach-Object { $_.Groups[1].Value }
-                        $hostUrl  = ($zi | Select-String 'HostUrl=(.+)').Matches | ForEach-Object { $_.Groups[1].Value }
-                        $referrer = ($zi | Select-String 'ReferrerUrl=(.+)').Matches | ForEach-Object { $_.Groups[1].Value }
+                        $zoneMatch = $zi | Select-String 'ZoneId=(\d)'
+                        $zoneId    = if ($zoneMatch) { $zoneMatch.Matches[0].Groups[1].Value } else { $null }
+                        $hostMatch = $zi | Select-String 'HostUrl=(.+)'
+                        $hostUrl   = if ($hostMatch) { $hostMatch.Matches[0].Groups[1].Value } else { $null }
+                        $refMatch  = $zi | Select-String 'ReferrerUrl=(.+)'
+                        $referrer  = if ($refMatch)  { $refMatch.Matches[0].Groups[1].Value } else { $null }
 
                         $zoneName = switch ($zoneId) {
                             '0' { 'Local'   }
@@ -2226,6 +2303,527 @@ function Get-DefenderExclusions {
         Write-Output "Defender exclusions saved to: $OutputPath\defender_exclusions.csv"
     } else {
         Write-Output "(No Defender exclusions configured)"
+    }
+    return $items
+}
+# ============================================================================
+# DEEP-DIVE COLLECTORS
+# ============================================================================
+
+# Collects all saved WiFi network profiles.  Each stored profile
+# reveals a network the device has connected to, which can place
+# the suspect at specific locations or reveal personal hotspot
+# usage.  Includes authentication type and auto-connect status.
+function Get-WiFiProfiles {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Saved WiFi Profiles ==="
+    $items = @()
+
+    try {
+        $profiles = netsh wlan show profiles 2>$null
+        $profileMatches = $profiles | Select-String 'All User Profile\s+:\s+(.+)$'
+        $profileNames = @()
+        if ($profileMatches) {
+            $profileNames = $profileMatches | ForEach-Object { $_.Matches.Groups[1].Value.Trim() }
+        }
+
+        foreach ($name in $profileNames) {
+            $detail = netsh wlan show profile name="$name" 2>$null
+            $authMatch = $detail | Select-String 'Authentication\s+:\s+(.+)$' | Select-Object -First 1
+            $encMatch  = $detail | Select-String 'Cipher\s+:\s+(.+)$' | Select-Object -First 1
+            $connMatch = $detail | Select-String 'Connection mode\s+:\s+(.+)$' | Select-Object -First 1
+            
+            $auth = if ($authMatch) { $authMatch.Matches.Groups[1].Value.Trim() } else { 'N/A' }
+            $enc  = if ($encMatch)  { $encMatch.Matches.Groups[1].Value.Trim() }  else { 'N/A' }
+            $connMode = if ($connMatch) { $connMatch.Matches.Groups[1].Value.Trim() } else { 'N/A' }
+            $autoConnect = if ($connMode -match 'auto') { 'Yes' } else { 'No' }
+
+            $items += [pscustomobject]@{
+                ProfileName    = $name
+                Authentication = $auth
+                Encryption     = $enc
+                ConnectionMode = $connMode
+                AutoConnect    = $autoConnect
+            }
+        }
+    } catch {
+        Write-Output "WARNING: WiFi profile collection failed - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\wifi_profiles.csv" -NoTypeInformation
+        Write-Output "WiFi profiles saved: $($items.Count) networks to $OutputPath\wifi_profiles.csv"
+    } else {
+        Write-Output "(No saved WiFi profiles found)"
+    }
+    return $items
+}
+
+# Collects the current desktop wallpaper path and any cached theme
+# images.  Wallpaper can reveal personal interests, inappropriate
+# imagery, or organisational affiliation.
+function Get-WallpaperInfo {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Desktop Wallpaper Info ==="
+    $items = @()
+
+    try {
+        # Current wallpaper from registry
+        $wp = Get-ItemPropertyValue "HKCU:\Control Panel\Desktop" -Name Wallpaper -ErrorAction SilentlyContinue
+        if ($wp) {
+            $wpItem = Get-Item $wp -ErrorAction SilentlyContinue
+            $items += [pscustomobject]@{
+                Source   = 'CurrentWallpaper'
+                Path     = $wp
+                SizeKB   = if ($wpItem) { [math]::Round($wpItem.Length / 1KB, 1) } else { 'N/A' }
+                Modified = if ($wpItem) { $wpItem.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss') } else { 'N/A' }
+            }
+        }
+
+        # Cached theme images
+        $themeCache = "$env:APPDATA\Microsoft\Windows\Themes\CachedFiles"
+        if (Test-Path $themeCache) {
+            Get-ChildItem $themeCache -File -ErrorAction SilentlyContinue | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Source   = 'CachedTheme'
+                    Path     = $_.FullName
+                    SizeKB   = [math]::Round($_.Length / 1KB, 1)
+                    Modified = $_.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                }
+            }
+        }
+
+        # Lockscreen cache
+        $lockscreen = "$env:LOCALAPPDATA\Packages\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\LocalState\Assets"
+        if (Test-Path $lockscreen) {
+            $lockItems = Get-ChildItem $lockscreen -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 100KB } | Sort-Object LastWriteTime -Descending | Select-Object -First 5
+            foreach ($f in $lockItems) {
+                $items += [pscustomobject]@{
+                    Source   = 'LockscreenAsset'
+                    Path     = $f.FullName
+                    SizeKB   = [math]::Round($f.Length / 1KB, 1)
+                    Modified = $f.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                }
+            }
+        }
+    } catch {
+        Write-Output "WARNING: Wallpaper collection failed - $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\wallpaper_info.csv" -NoTypeInformation
+        Write-Output "Wallpaper info saved to: $OutputPath\wallpaper_info.csv"
+    } else {
+        Write-Output "(No wallpaper information found)"
+    }
+    return $items
+}
+
+# Extracts saved bookmarks from Chrome and Edge browsers by parsing
+# their JSON bookmark files.  Bookmarks indicate deliberate, repeated
+# interest in specific sites - a stronger signal than browsing history.
+function Get-BrowserBookmarks {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Bookmarks ==="
+    $items = @()
+
+    $browsers = @{
+        'Chrome' = "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Bookmarks"
+        'Edge'   = "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Bookmarks"
+    }
+
+    foreach ($browser in $browsers.GetEnumerator()) {
+        if (Test-Path $browser.Value) {
+            try {
+                $json = Get-Content $browser.Value -Raw -Encoding UTF8 | ConvertFrom-Json
+                $roots = $json.roots
+
+                # Recursive bookmark walker
+                $walkBookmarks = {
+                    param($node, $folder, $browserName)
+                    if ($node.type -eq 'url') {
+                        [pscustomobject]@{
+                            Browser = $browserName
+                            Folder  = $folder
+                            Name    = $node.name
+                            URL     = $node.url
+                        }
+                    }
+                    if ($node.children) {
+                        foreach ($child in $node.children) {
+                            & $walkBookmarks $child "$folder/$($child.name)" $browserName
+                        }
+                    }
+                }
+
+                foreach ($rootName in @('bookmark_bar', 'other', 'synced')) {
+                    $rootNode = $roots.$rootName
+                    if ($rootNode) {
+                        $results = & $walkBookmarks $rootNode $rootName $browser.Key
+                        if ($results) { $items += @($results) }
+                        if ($rootNode.children) {
+                            foreach ($child in $rootNode.children) {
+                                $results = & $walkBookmarks $child "$rootName" $browser.Key
+                                if ($results) { $items += @($results) }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                Write-Output "WARNING: Failed to parse $($browser.Key) bookmarks - $_"
+            }
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\browser_bookmarks.csv" -NoTypeInformation
+        Write-Output "Browser bookmarks saved: $($items.Count) bookmarks to $OutputPath\browser_bookmarks.csv"
+    } else {
+        Write-Output "(No browser bookmarks found)"
+    }
+    return $items
+}
+
+# Extracts Google and Bing search queries from browser history SQLite
+# databases.  Requires a prior run of Get-BrowserArtifactsAndDownloads
+# to copy the SQLite files.  Search queries reveal user intentions
+# and investigative behaviour more directly than page titles.
+function Get-BrowserSearchHistory {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Extracting Browser Search Queries ==="
+    $items = @()
+
+    # Look for copied browser SQLite databases
+    $browserDir = "$OutputPath\browser_artifacts"
+    $dbFiles = @()
+    if (Test-Path $browserDir) {
+        $dbFiles = Get-ChildItem $browserDir -Filter "*-History.sqlite" -ErrorAction SilentlyContinue
+    }
+
+    if ($dbFiles.Count -eq 0) {
+        Write-Output "(No browser SQLite databases found - run Get-BrowserArtifactsAndDownloads first)"
+        return $items
+    }
+
+    # Try to use Python for SQLite parsing (more reliable than System.Data.SQLite)
+    $pythonPath = (Get-Command python -ErrorAction SilentlyContinue).Path
+    if (-not $pythonPath) {
+        $pythonPath = (Get-Command python3 -ErrorAction SilentlyContinue).Path
+    }
+
+    if ($pythonPath) {
+        foreach ($db in $dbFiles) {
+            $browserName = $db.Name -replace '-History\.sqlite$', ''
+            $pyScript = @"
+import sqlite3, json, sys
+from urllib.parse import urlparse, parse_qs, unquote
+from datetime import datetime, timedelta
+
+def chrome_time(t):
+    try:
+        return (datetime(1601,1,1) + timedelta(microseconds=t)).strftime('%Y-%m-%d %H:%M:%S')
+    except:
+        return '?'
+
+conn = sqlite3.connect(r'$($db.FullName)')
+cur = conn.cursor()
+cur.execute("SELECT url, last_visit_time FROM urls WHERE url LIKE '%google.com/search%' OR url LIKE '%bing.com/search%' ORDER BY last_visit_time DESC")
+results = []
+seen = set()
+for url, lvt in cur.fetchall():
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    query = params.get('q', params.get('Q', ['']))[0]
+    if query and query not in seen:
+        seen.add(query)
+        engine = 'Google' if 'google.com' in url else 'Bing'
+        results.append({'ts': chrome_time(lvt), 'engine': engine, 'query': unquote(query)})
+conn.close()
+print(json.dumps(results))
+"@
+            try {
+                $pyResult = $pyScript | & $pythonPath - 2>$null
+                if ($pyResult) {
+                    $searches = $pyResult | ConvertFrom-Json
+                    foreach ($s in $searches) {
+                        $items += [pscustomobject]@{
+                            Timestamp = $s.ts
+                            Engine    = "$($s.engine) ($browserName)"
+                            Query     = $s.query
+                        }
+                    }
+                }
+            } catch {
+                Write-Output "WARNING: Failed to parse $browserName search history - $_"
+            }
+        }
+    } else {
+        Write-Output "WARNING: Python not found - cannot parse SQLite databases for search history"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\browser_search_history.csv" -NoTypeInformation
+        Write-Output "Search history saved: $($items.Count) queries to $OutputPath\browser_search_history.csv"
+    } else {
+        Write-Output "(No browser search queries found)"
+    }
+    return $items
+}
+
+# Extracts Windows Activity History from the ActivitiesCache.db
+# SQLite database.  This timeline records every application the
+# user interacted with including timestamps, providing a detailed
+# usage profile even when browser history is cleared.
+function Get-WindowsTimeline {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Windows Activity Timeline ==="
+    $items = @()
+
+    # Find the largest (most active) ActivitiesCache.db
+    $dbFiles = Get-ChildItem "$env:LOCALAPPDATA\ConnectedDevicesPlatform" -Recurse -Filter "ActivitiesCache.db" -ErrorAction SilentlyContinue | Sort-Object Length -Descending
+    
+    if ($dbFiles.Count -eq 0) {
+        Write-Output "(No Activity History database found)"
+        return $items
+    }
+
+    $targetDb = $dbFiles[0].FullName
+    Write-Output "Using timeline database: $targetDb ($([math]::Round($dbFiles[0].Length / 1MB, 1)) MB)"
+
+    # Copy DB to evidence (it may be locked)
+    $copyPath = "$OutputPath\ActivitiesCache.db"
+    try {
+        Copy-Item $targetDb $copyPath -Force -ErrorAction Stop
+    } catch {
+        Write-Output "WARNING: Could not copy timeline DB (may be locked) - reading directly"
+        $copyPath = $targetDb
+    }
+
+    $pythonPath = (Get-Command python -ErrorAction SilentlyContinue).Path
+    if (-not $pythonPath) {
+        $pythonPath = (Get-Command python3 -ErrorAction SilentlyContinue).Path
+    }
+
+    if ($pythonPath) {
+        $pyScript = @"
+import sqlite3, json
+from datetime import datetime, timedelta
+
+def win_time(t):
+    try:
+        if t and t > 0:
+            return (datetime(1601,1,1) + timedelta(seconds=t)).strftime('%Y-%m-%d %H:%M:%S')
+    except:
+        pass
+    return '?'
+
+conn = sqlite3.connect(r'$copyPath')
+cur = conn.cursor()
+cur.execute("""
+    SELECT AppId, ActivityType, LastModifiedTime, Payload
+    FROM Activity
+    ORDER BY LastModifiedTime DESC
+    LIMIT 500
+""")
+results = []
+type_map = {5:'Open', 6:'AppInFocus', 10:'Clipboard', 11:'SystemEvent', 16:'AppSwitch'}
+for appid_raw, atype, lmt, payload in cur.fetchall():
+    app = '?'
+    try:
+        appid = json.loads(appid_raw)
+        for entry in appid:
+            if 'application' in entry:
+                app = entry['application']
+                break
+    except:
+        pass
+    display = ''
+    try:
+        if payload:
+            p = json.loads(payload)
+            if isinstance(p, dict):
+                display = p.get('displayText', p.get('description', ''))[:100]
+    except:
+        pass
+    results.append({
+        'ts': win_time(lmt),
+        'app': app.split('!')[-1] if '!' in app else app,
+        'display': display,
+        'atype': type_map.get(atype, str(atype))
+    })
+conn.close()
+print(json.dumps(results))
+"@
+        try {
+            $pyResult = $pyScript | & $pythonPath - 2>$null
+            if ($pyResult) {
+                $activities = $pyResult | ConvertFrom-Json
+                foreach ($a in $activities) {
+                    $items += [pscustomobject]@{
+                        Timestamp    = $a.ts
+                        Application  = $a.app
+                        DisplayText  = $a.display
+                        ActivityType = $a.atype
+                    }
+                }
+            }
+        } catch {
+            Write-Output "WARNING: Failed to parse timeline database - $_"
+        }
+    } else {
+        Write-Output "WARNING: Python not found - cannot parse Activity History"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\windows_timeline.csv" -NoTypeInformation
+        Write-Output "Timeline saved: $($items.Count) activities to $OutputPath\windows_timeline.csv"
+    } else {
+        Write-Output "(No timeline activities found)"
+    }
+    return $items
+}
+
+# Scans for gaming artifacts from Steam, Rimworld, Minecraft, and
+# other game platforms.  Gaming data shows how the suspect spends
+# their time, and common save file locations can also be used to
+# hide data.
+function Get-GameArtifacts {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Game & Entertainment Artifacts ==="
+    $items = @()
+
+    # Steam registry
+    try {
+        $steamReg = Get-ItemProperty "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
+        if ($steamReg) {
+            $steamPath = $steamReg.SteamPath
+            $items += [pscustomobject]@{
+                Source       = 'Steam'
+                Name         = 'Steam Installation'
+                Detail       = "Path: $steamPath | Installed: $(if (Test-Path $steamPath) {'Yes'} else {'Folder Missing'})"
+                LastModified = 'N/A'
+            }
+
+            # Enumerate installed game ACF manifests
+            $appsDir = "$steamPath\steamapps"
+            if (Test-Path $appsDir) {
+                Get-ChildItem "$appsDir\*.acf" -ErrorAction SilentlyContinue | ForEach-Object {
+                    $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
+                    $gameName = if ($content -match '"name"\s+"([^"]+)"') { $matches[1] } else { $_.Name }
+                    $items += [pscustomobject]@{
+                        Source       = 'Steam'
+                        Name         = $gameName
+                        Detail       = "Manifest: $($_.Name)"
+                        LastModified = $_.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                    }
+                }
+            }
+        }
+    } catch {}
+
+    # Rimworld
+    $rimworldPath = "$env:USERPROFILE\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios"
+    if (Test-Path $rimworldPath) {
+        $items += [pscustomobject]@{
+            Source       = 'Rimworld'
+            Name         = 'Rimworld Data Found'
+            Detail       = "Path: $rimworldPath"
+            LastModified = (Get-Item $rimworldPath).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+        $savesPath = "$rimworldPath\Saves"
+        if (Test-Path $savesPath) {
+            Get-ChildItem "$savesPath\*.rws" -ErrorAction SilentlyContinue | ForEach-Object {
+                $sizeMB = [math]::Round($_.Length / 1MB, 1)
+                $items += [pscustomobject]@{
+                    Source       = 'Rimworld'
+                    Name         = "Save: $($_.BaseName)"
+                    Detail       = "Size: ${sizeMB}MB"
+                    LastModified = $_.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                }
+            }
+        }
+        # Check for mods
+        $modLists = "$rimworldPath\ModLists"
+        if (Test-Path $modLists) {
+            $modCount = (Get-ChildItem $modLists -File -ErrorAction SilentlyContinue).Count
+            if ($modCount -gt 0) {
+                $items += [pscustomobject]@{
+                    Source       = 'Rimworld'
+                    Name         = 'Mod Lists'
+                    Detail       = "$modCount mod list file(s)"
+                    LastModified = (Get-ChildItem $modLists -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                }
+            }
+        }
+    }
+
+    # Minecraft
+    if (Test-Path "$env:APPDATA\.minecraft") {
+        $mcPath = "$env:APPDATA\.minecraft"
+        $items += [pscustomobject]@{
+            Source       = 'Minecraft'
+            Name         = 'Minecraft Data Found'
+            Detail       = "Path: $mcPath"
+            LastModified = (Get-Item $mcPath).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+        $mcSaves = "$mcPath\saves"
+        if (Test-Path $mcSaves) {
+            Get-ChildItem $mcSaves -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                $items += [pscustomobject]@{
+                    Source       = 'Minecraft'
+                    Name         = "World: $($_.Name)"
+                    Detail       = "Folder size not calculated"
+                    LastModified = $_.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                }
+            }
+        }
+    }
+
+    # Epic Games
+    $epicPath = "$env:LOCALAPPDATA\EpicGamesLauncher"
+    if (Test-Path $epicPath) {
+        $items += [pscustomobject]@{
+            Source       = 'EpicGames'
+            Name         = 'Epic Games Launcher'
+            Detail       = "Path: $epicPath"
+            LastModified = (Get-Item $epicPath).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+    }
+
+    # Discord (gaming social)
+    $discordPath = "$env:APPDATA\discord"
+    if (Test-Path $discordPath) {
+        $items += [pscustomobject]@{
+            Source       = 'Discord'
+            Name         = 'Discord Data'
+            Detail       = "Path: $discordPath"
+            LastModified = (Get-Item $discordPath).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\game_artifacts.csv" -NoTypeInformation
+        Write-Output "Game artifacts saved: $($items.Count) items to $OutputPath\game_artifacts.csv"
+    } else {
+        Write-Output "(No game artifacts found)"
     }
     return $items
 }

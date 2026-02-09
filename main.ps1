@@ -152,6 +152,30 @@ try {
     Write-Output ""
 
     # ========================================================================
+    # PRIORITY 4.5: DEEP-DIVE ARTIFACTS
+    # ========================================================================
+    Write-Output "PRIORITY 4.5: Deep-dive artifact collection (WiFi, bookmarks, search, timeline, games)"
+    Write-Output ""
+
+    $wifiProfiles = Get-WiFiProfiles -OutputPath $evidencePath
+    Write-Output ""
+
+    $wallpaperInfo = Get-WallpaperInfo -OutputPath $evidencePath
+    Write-Output ""
+
+    $browserBookmarks = Get-BrowserBookmarks -OutputPath $evidencePath
+    Write-Output ""
+
+    $browserSearchHistory = Get-BrowserSearchHistory -OutputPath $evidencePath
+    Write-Output ""
+
+    $windowsTimeline = Get-WindowsTimeline -OutputPath $evidencePath
+    Write-Output ""
+
+    $gameArtifacts = Get-GameArtifacts -OutputPath $evidencePath
+    Write-Output ""
+
+    # ========================================================================
     # PRIORITY 5: VOLATILE / TIME-SENSITIVE
     # ========================================================================
     Write-Output "PRIORITY 5: Capturing volatile evidence (DNS cache, clipboard, sessions)"
@@ -247,7 +271,13 @@ try {
                         -UserAssist $userAssist `
                         -HostsFileEntries $hostsFileEntries `
                         -FirewallRules $firewallRules `
-                        -DefenderExclusions $defenderExclusions
+                        -DefenderExclusions $defenderExclusions `
+                        -WiFiProfiles $wifiProfiles `
+                        -WallpaperInfo $wallpaperInfo `
+                        -BrowserBookmarks $browserBookmarks `
+                        -BrowserSearchHistory $browserSearchHistory `
+                        -WindowsTimeline $windowsTimeline `
+                        -GameArtifacts $gameArtifacts
     Write-Output ""
     
 } catch {
