@@ -1,4 +1,6 @@
-﻿# Forensic Collection Functions
+﻿Write-Host "Hello, World!"
+
+# Forensic Collection Functions
 
 # ============================================================================
 # MEMORY ACQUISITION
@@ -2069,7 +2071,7 @@ function Get-UserAssistHistory {
     $items = @()
 
     # ROT13 decode helper
-    function Decode-ROT13 {
+    function ConvertFrom-ROT13 {
         param([string]$Text)
         $chars = $Text.ToCharArray()
         $decoded = -join ($chars | ForEach-Object {
@@ -2098,7 +2100,7 @@ function Get-UserAssistHistory {
             $key = Get-Item -Path $keyPath -ErrorAction SilentlyContinue
             foreach ($valName in $key.GetValueNames()) {
                 if (-not $valName) { continue }
-                $decoded = Decode-ROT13 -Text $valName
+                $decoded = ConvertFrom-ROT13 -Text $valName
                 $data = $key.GetValue($valName)
                 $runCount = 0
                 $lastRun  = $null
