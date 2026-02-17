@@ -5,6 +5,8 @@
 # ============================================================================
 # MEMORY ACQUISITION
 # ============================================================================
+# Acquires a physical memory (RAM) dump using WinPmem if available.
+# Returns a PSCustomObject with `Success`, `Path`, and `Error` fields.
 function Export-MemoryDump {
     param(
         [string]$OutputPath
@@ -73,6 +75,7 @@ function Export-MemoryDump {
 # ============================================================================
 # LIVE SYSTEM COLLECTION
 # ============================================================================
+# Collects the current running processes, saves them to CSV, and returns the process objects.
 function Get-ProcessList {
     param(
         [string]$OutputPath
@@ -94,6 +97,7 @@ function Get-UserList {
     param(
         [string]$OutputPath
     )
+    # Gathers local user accounts and exports them to CSV; returns the user objects.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Local User Accounts ==="
     try {
         $users = Get-LocalUser | Select-Object Name, Enabled, Description, LastLogon
@@ -111,6 +115,7 @@ function Get-NetworkConnections {
     param(
         [string]$OutputPath
     )
+    # Captures current TCP connections (local/remote addresses and ports) and exports them to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting TCP Connections ==="
     try {
         $tcpConnections = Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State
@@ -128,6 +133,7 @@ function Get-NetworkNeighbors {
     param(
         [string]$OutputPath
     )
+    # Captures ARP/neighbor entries to map local network peers; exports to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Neighbors (ARP) ==="
     try {
         $neighbors = Get-NetNeighbor -ErrorAction SilentlyContinue | Select-Object IPAddress, LinkLayerAddress, State, InterfaceAlias
@@ -145,6 +151,7 @@ function Get-PrefetchFiles {
     param(
         [string]$OutputPath
     )
+    # Enumerates Windows prefetch (.pf) files for recent program execution artefacts and exports to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
@@ -170,6 +177,7 @@ function Get-PrefetchFiles {
 # ============================================================================
 # HASHING AND INTEGRITY
 # ============================================================================
+# Computes SHA256 hashes for provided files and returns objects with name, path, size and SHA256.
 function Get-FileHashes {
     param(
         [System.IO.FileInfo[]]$Files
@@ -204,6 +212,7 @@ function Get-FileHashes {
 # ============================================================================
 # HTML REPORTING
 # ============================================================================
+# Generates an HTML forensic report from collected artifact objects and writes it to the output path.
 function New-HTMLReport {
     param(
         [string]$OutputPath,
@@ -849,6 +858,7 @@ function Get-InstalledPrograms {
     param(
         [string]$OutputPath
     )
+    # Enumerates installed applications (registry + Appx) and exports a CSV listing.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Installed Programs ==="
     try {
         $uninstallPaths = @(
@@ -903,6 +913,7 @@ function Get-ServicesList {
     param(
         [string]$OutputPath
     )
+    # Lists Windows services and exports basic status and configuration to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Services ==="
     try {
         $services = Get-Service | Select-Object Name, DisplayName, Status, StartType
@@ -921,6 +932,7 @@ function Get-ScheduledTasksList {
     param(
         [string]$OutputPath
     )
+    # Retrieves scheduled tasks, their last/next run times and actions, then exports to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Scheduled Tasks ==="
     try {
         $tasks = Get-ScheduledTask -ErrorAction SilentlyContinue | ForEach-Object {
@@ -952,6 +964,7 @@ function Get-NetworkConfig {
     param(
         [string]$OutputPath
     )
+    # Captures network adapter configuration (IP addresses, DNS, gateways) and exports to CSV.
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Configuration ==="
     try {
         $adapters = Get-NetIPConfiguration -ErrorAction SilentlyContinue | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway
@@ -972,7 +985,8 @@ function Get-EventLogTriage {
         [int]$Days = 3
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
+        # Collects recent events from Security, System, and Application logs (default last 3 days) and exports CSVs.
+        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
     $logs = @{
         Security    = 'event_security.csv'
         System      = 'event_system.csv'
@@ -1018,7 +1032,8 @@ function Get-WmiPersistence {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
+        # Collects WMI persistence artifacts (filters, consumers, and bindings) to detect persistent techniques.
+        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
     $items = @()
 
     try {
@@ -1099,7 +1114,8 @@ function Get-Autoruns {
     param(
         [string]$OutputPath
     )
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
+        # Enumerates autorun entries from registry Run keys and standard Startup folders; exports findings to CSV.
+        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
     $items = @()
 
     $runPaths = @(
@@ -1914,6 +1930,8 @@ The dump is preserved with SHA256 integrity hashing for chain of custody.
 # BROWSER ARTIFACTS & DOWNLOADS
 # ============================================================================
 
+# Copies browser SQLite artifacts (History/Bookmarks) and enumerates the user's Downloads folder.
+# Returns a PSCustomObject with `Downloads` and `BrowserCopies` fields describing copied artifacts.
 function Get-BrowserArtifactsAndDownloads {
     param(
         [string]$OutputPath
