@@ -1,63 +1,80 @@
-TODO
+TODO - Updated 18 Feb 2026
+==========================
 
-1. Multi-VM Evidence Collection & Separation
-Your script is not automated for two VMs; you must run it separately for each VM and manually label outputs.
-No batch or loop to collect from both VMs in one go.
-No handling for sleeping/offline VMs (disk image extraction).
+========== SCRIPT / TECHNICAL (for crime scene day, 28 Feb) ==========
 
-2. Sleeping VM Artefact Extraction
-No code to mount/analyze sleeping VM disk images (e.g., VMDK).
-No integration of FTK Imager or SimpleImager for offline artefact extraction.
+[DONE] Multi-VM batch mode (run.bat menu + Invoke-MultiVMCollection + -BatchMode switch)
+[DONE] Full event log export (Get-FullEventLogs - all .evtx + forensic Event ID triage)
+[DONE] Registry hive collection (SAM, SYSTEM, SOFTWARE, SECURITY, NTUSER.DAT, UsrClass.dat)
+[DONE] SRUM database collection (network usage, app execution)
+[DONE] Amcache & ShimCache extraction (execution history)
+[DONE] LNK files & Jump Lists (file access history)
+[DONE] Thumbnail cache collection (viewed images/videos)
+[DONE] MFT & USN Journal acquisition (file system timeline + deleted file recovery)
+[DONE] Email artefact collection (Outlook PST/OST, Thunderbird, Windows Mail)
+[DONE] Pagefile & hiberfil.sys acquisition (RAM fragments, hibernation memory)
+[DONE] FTK Imager disk imaging integration (E01/RAW with verification)
+[DONE] Sleeping VM artefact workflow (Get-SleepingVMArtefacts - VMDK imaging + notes)
+[DONE] HTML report covers all new artefact sections with summary cards
+[DONE] Transcript logging (Start-Transcript)
+[DONE] SHA256 hashing of all evidence files (chain of custody)
+[DONE] Per-VM evidence separation (Evidence\<VmLabel>\)
+[DONE] Anti-forensics detection (ADS, hidden files, encrypted volumes, timestomping)
+[DONE] Browser artefacts (history, bookmarks, search queries, downloads)
+[DONE] Volatile evidence (DNS cache, clipboard, mapped drives, RDP sessions)
 
-3. Disk/MFT/NTFS Metadata Collection
-No collection of $MFT, $LogFile, $UsnJrnl (critical for file system timeline and deleted file recovery).
-No registry hive collection (SAM, SYSTEM, SOFTWARE, NTUSER.DAT, etc.).
-No collection of pagefile.sys or hiberfil.sys (for memory artefacts).
+[ ] RawCopy64.exe in bin\ - needed by Get-MFTAndUsnJournal to copy locked $MFT/$UsnJrnl
+       Without it, the function falls back to shadow copy or skips. Get from:
+       https://github.com/jschicht/RawCopy
+[ ] Test full script run on a practice VM BEFORE crime scene day
+       Run as admin, check all output folders populate, HTML report renders
+[ ] Consider adding: VSS shadow copy browsing/file recovery
+       (currently detects shadow copies but doesn't extract files from them)
 
-4. Disk Imaging Integration
-FTK Imager and SimpleImager are present, but not integrated into your main workflow.
-No automated disk imaging step for sleeping VMs.
+========== DOCUMENTS TO SUBMIT (due 17 Apr) ==========
 
-5. Artefact Completeness
-Your script covers volatile and non-volatile artefacts (RAM, processes, users, network, downloads, browser history, etc.).
-Missing:
-Full event logs (not just triage/last 3 days).
-Registry hives.
-NTFS metadata.
-Pagefile/hiberfil.
-Email artefacts (if provided by victim).
-Evidence of links between VMs (e.g., RDP, shared files, network connections).
+[ ] Evidence intake form + Chain of Custody paperwork
+       - Must document every item seized, who handled it, timestamps
+       - Template should be in Week 4 module section on Canvas
+[ ] Forensic report (on the provided template - yellow highlighted section)
+       - Must include: PS1 scripts (commented/indented), transcript logs, HTML report output
+       - Must cover exhibits for court
+       - "No logs, no points" - make sure transcript + HTML are included
+[ ] Expert witness report
+       - First-person account of what you did
+       - Expert opinion about the suspect
+       - Professional, court-ready language
+[ ] Contemporaneous notes
+       - HANDWRITTEN with dates and times (unless SORA exemption agreed)
+       - Scanned in for submission
+       - Record everything: arrival time, what you saw, what you ran, observations
 
-6. Evidence Intake & Chain of Custody
-Not relevant until you have physical evidence, but must be prepared for final submission.
+========== ANALYSIS TASKS (after crime scene, before submission) ==========
 
-7. Artefact Analysis
-No automated analysis for:
-Files/metadata related to extortion/theft.
-Hidden/suspicious mechanisms.
-Memory/process links between VMs.
-Evidence of offences and responsible individuals.
-You must manually review artefacts or add analysis steps.
+[ ] Evidence of extortion/theft (20% of marks)
+       - Files or metadata exported from victims
+       - Downloaded files linked to extortion method
+       - Copies on the volume
+[ ] Hidden/suspicious mechanisms (20% of marks)
+       - Check ADS, hidden files, encrypted volumes, timestomped files
+       - Defender exclusions, firewall rule changes
+       - WMI persistence, suspicious autoruns
+       - Tool installations (VeraCrypt, wipers, etc.)
+[ ] Memory/process links between VMs (20% of marks)
+       - RAM dump analysis with Volatility 3
+       - Network connections between VMs
+       - RDP artefacts, shared drives
+       - strings.exe on RAM dump for IPs, emails, URLs
+[ ] Second VM investigation (20% of marks)
+       - Sleeping VM -> image with FTK, then offline analysis
+       - Registry hives, Amcache, MFT timeline
+       - Evidence linking both VMs to same suspect
+       - Evidence of the two charged offences
+       - Identify responsible individual(s)
 
-Requirement (from brief)	Status	Notes
-Evidence intake/chain of custody	Not needed yet	Prepare for final submission
-Forensic report (template)	Missing	Must use provided template
-Expert witness report	Missing	First-person account/opinion
-Contemporaneous notes	Missing	Handwritten/scanned or digital
-PS1 scripts & HTML report	Complete	Automated collection, but not full artefact set
-Transcript logs	Complete	Audit trail present
-Multi-VM automation	Missing	Manual per VM, no batch/loop
-Sleeping VM artefact extraction	Missing	Needs disk imaging + offline artefact extraction
-MFT/NTFS metadata	Missing	No $MFT, $LogFile, $UsnJrnl collection
-Registry hives	Missing	No SYSTEM/SAM/SOFTWARE/NTUSER.DAT
-Disk imaging integration	Missing	FTK Imager present, not integrated
-Artefact completeness	Partial	No pagefile/hiberfil, registry, MFT
-Artefact analysis	Missing	No automated analysis for links/extortion
-Evidence separation	Partial	Label system, manual per VM
-What you must do next (brief-driven):
+========== STANDARDS TO FOLLOW ==========
 
-Integrate disk imaging for sleeping VMs.
-Add collection of MFT, registry hives, and other NTFS artefacts.
-Ensure you run the script for both VMs and keep evidence separated.
-Review artefacts for links, extortion evidence, and hidden mechanisms.
-Complete forensic report (template), expert witness report, and contemporaneous notes.
+- ACPO Good Practice Guidelines (4 principles)
+- ISO 27037 (digital evidence identification, collection, acquisition, preservation)
+- ISO 17025 (forensic lab competence)
+- Forensic Science Regulator standards

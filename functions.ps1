@@ -260,7 +260,17 @@ function New-HTMLReport {
         [object]$BrowserBookmarks,
         [object]$BrowserSearchHistory,
         [object]$WindowsTimeline,
-        [object]$GameArtifacts
+        [object]$GameArtifacts,
+        # --- Priority 7: Registry / Execution / File Metadata ---
+        [object]$RegistryHives,
+        [object]$SRUMDatabase,
+        [object]$Amcache,
+        [object]$LnkFiles,
+        [object]$ThumbnailCache,
+        [object]$MFTUsn,
+        # --- Priority 8: Email & Memory Files ---
+        [object]$EmailArtefacts,
+        [object]$MemoryFiles
     )
     Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
@@ -391,6 +401,12 @@ function New-HTMLReport {
     <div class="card"><h4>UserAssist</h4><p>$(@($UserAssist).Count)</p></div>
     <div class="card"><h4>Firewall Rules</h4><p>$(@($FirewallRules).Count)</p></div>
     <div class="card"><h4>Defender Excl.</h4><p>$(@($DefenderExclusions).Count)</p></div>
+    <div class="card"><h4>Registry Hives</h4><p>$(if($RegistryHives){'Collected'}else{'N/A'})</p></div>
+    <div class="card"><h4>SRUM DB</h4><p>$(if($SRUMDatabase){'Collected'}else{'N/A'})</p></div>
+    <div class="card"><h4>Amcache</h4><p>$(if($Amcache){'Collected'}else{'N/A'})</p></div>
+    <div class="card"><h4>LNK Files</h4><p>$(@($LnkFiles).Count)</p></div>
+    <div class="card"><h4>Email Items</h4><p>$(@($EmailArtefacts).Count)</p></div>
+    <div class="card"><h4>Memory Files</h4><p>$(@($MemoryFiles).Count)</p></div>
 </div>
 
 <details open>
@@ -827,6 +843,119 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
     <summary>Game &amp; Entertainment Artifacts ($(@($GameArtifacts).Count))</summary>
     <p><em>Evidence of gaming activity from Steam, Rimworld, Minecraft, and other sources. Shows entertainment habits and time usage.</em></p>
     $(@($GameArtifacts) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        # ====== PRIORITY 7: REGISTRY / EXECUTION / FILE METADATA ======
+
+        if ($RegistryHives) {
+            $html += @"
+<details open>
+    <summary>Registry Hives (Priority 7)</summary>
+    <p><em>Binary registry hive exports (SAM, SYSTEM, SOFTWARE, SECURITY, NTUSER.DAT, UsrClass.dat). These contain user accounts, password hashes, USB history, installed software, autorun entries, MRU lists, and typed paths. Parse with Registry Explorer or RegRipper.</em></p>
+    <p><strong>Collected to:</strong> $RegistryHives</p>
+    <p><strong>Key hives:</strong></p>
+    <ul>
+        <li><strong>SAM</strong> — Local user accounts and password hashes</li>
+        <li><strong>SYSTEM</strong> — Hardware config, timezone, USB history, network interfaces</li>
+        <li><strong>SOFTWARE</strong> — Installed programs, autorun entries, OS settings</li>
+        <li><strong>SECURITY</strong> — LSA secrets, cached credentials</li>
+        <li><strong>NTUSER.DAT</strong> — Per-user settings, MRU lists, typed paths, UserAssist</li>
+        <li><strong>UsrClass.dat</strong> — User-specific COM/shell settings, folder access (ShellBags)</li>
+    </ul>
+</details>
+"@
+        }
+
+        if ($SRUMDatabase) {
+            $html += @"
+<details>
+    <summary>SRUM Database (Priority 7)</summary>
+    <p><em>System Resource Usage Monitor — records per-application network bytes sent/received, CPU time, and energy usage with timestamps going back ~30 days. Persists even after browser history is cleared. Can prove network exfiltration activity.</em></p>
+    <p><strong>Collected to:</strong> $SRUMDatabase</p>
+    <p><strong>Parse with:</strong> SrumECmd.exe (Eric Zimmermann) or srum-dump</p>
+</details>
+"@
+        }
+
+        if ($Amcache) {
+            $html += @"
+<details>
+    <summary>Amcache &amp; ShimCache (Priority 7)</summary>
+    <p><em>Amcache.hve records SHA1 hashes of every executable run on the system, even if the file has since been deleted. Critical for proving a program was executed. ShimCache (AppCompatCache) in SYSTEM hive records execution order and timestamps.</em></p>
+    <p><strong>Collected to:</strong> $Amcache</p>
+    <p><strong>Parse with:</strong> AmcacheParser.exe / AppCompatCacheParser.exe (Eric Zimmermann)</p>
+</details>
+"@
+        }
+
+        if ($LnkFiles -and @($LnkFiles).Count -gt 0) {
+            if ($LnkFiles) { $LnkFiles = @($LnkFiles | Where-Object { $_.LnkName } | Select-Object User, Type, LnkName, TargetPath, LnkCreated, LnkModified) }
+            $html += @"
+<details>
+    <summary>LNK Files &amp; Jump Lists ($(@($LnkFiles).Count) metadata entries) (Priority 7)</summary>
+    <p><em>LNK shortcut files are created automatically when files are opened. They contain the original file path, MAC timestamps, and volume serial number — even if the original file no longer exists. Jump Lists extend this with per-application MRU lists.</em></p>
+    <p><strong>Parse with:</strong> LECmd.exe and JLECmd.exe (Eric Zimmermann)</p>
+    $(@($LnkFiles) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($ThumbnailCache) {
+            $html += @"
+<details>
+    <summary>Thumbnail Cache (Priority 7)</summary>
+    <p><em>Windows caches thumbnails of viewed images, videos, and documents. These can retain thumbnails of files that have since been deleted — potentially showing images the suspect viewed even after they cleared downloads or recycle bin.</em></p>
+    <p><strong>Collected to:</strong> $ThumbnailCache</p>
+    <p><strong>Parse with:</strong> Thumbcache Viewer — https://thumbcacheviewer.github.io</p>
+</details>
+"@
+        }
+
+        if ($MFTUsn) {
+            $html += @"
+<details>
+    <summary>MFT &amp; USN Journal (Priority 7)</summary>
+    <p><em>The Master File Table (`$MFT) is the index of every file on an NTFS volume — deleted entries persist until overwritten. The USN Change Journal records every file system operation (create, modify, rename, delete).</em></p>
+    <p><strong>Collected to:</strong> $MFTUsn</p>
+    <p><strong>Parse with:</strong> MFTECmd.exe (Eric Zimmermann) for timeline analysis</p>
+</details>
+"@
+        }
+
+        # ====== PRIORITY 8: EMAIL & MEMORY FILES ======
+
+        if ($EmailArtefacts -and @($EmailArtefacts).Count -gt 0) {
+            if ($EmailArtefacts) { $EmailArtefacts = @($EmailArtefacts | Where-Object { $_.FileName } | Select-Object User, Type, FileName, SourcePath, SizeMB, Modified, CopyStatus) }
+            $html += @"
+<details open>
+    <summary>Email Artefacts ($(@($EmailArtefacts).Count) items) (Priority 8)</summary>
+    <p><em>Outlook PST/OST files, Thunderbird mbox folders, and Windows Mail data. PST/OST files contain the full mailbox including deleted items. Email headers contain IP addresses and timestamps for attribution.</em></p>
+    <p><strong>Analysis tips:</strong></p>
+    <ul>
+        <li>PST/OST: Open in Outlook, or use free Kernel PST Viewer</li>
+        <li>MBOX: Open in Thunderbird, or use readpst on Linux</li>
+        <li>Check: Deleted Items, Sent Items, Drafts for unsent messages</li>
+        <li>Email headers contain originating IP addresses</li>
+    </ul>
+    $(@($EmailArtefacts) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        if ($MemoryFiles -and @($MemoryFiles).Count -gt 0) {
+            if ($MemoryFiles) { $MemoryFiles = @($MemoryFiles | Where-Object { $_.File } | Select-Object File, SizeMB, Status, Description, Method) }
+            $html += @"
+<details open>
+    <summary>Memory Files — Pagefile / Hiberfil ($(@($MemoryFiles).Count) targets) (Priority 8)</summary>
+    <p><em>pagefile.sys contains RAM fragments (passwords, documents, network data). hiberfil.sys is a full RAM snapshot from hibernation — parse with Volatility as a memory image. swapfile.sys contains UWP app swap data.</em></p>
+    <p><strong>Analysis tips:</strong></p>
+    <ul>
+        <li>hiberfil.sys: <code>vol.py -f hiberfil.sys windows.pslist</code></li>
+        <li>pagefile.sys: <code>strings.exe -n 8 pagefile.sys | findstr /i "password"</code></li>
+    </ul>
+    $(@($MemoryFiles) | ConvertTo-Html -Fragment)
 </details>
 "@
         }

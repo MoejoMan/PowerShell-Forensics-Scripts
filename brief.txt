@@ -1,0 +1,92 @@
+Due 17 Apr by 14:00 Points 100 Submitting a file upload File types doc, docx, pdf, ppt, pptx, ppsx, pps, xls, xlsx, odt, wpd, ps, eps, htm, html, hwp, rtf, txt, mp4, wmv, mov, 3gp, avi, m4v, and mkv Available until 17 Apr at 14:00
+By submitting, I understand that the piece of work submitted will be considered as the final and complete version of my assignment of which I am otherwise the sole author. I understand both the meaning and consequences of plagiarism and that my work has been appropriately attributed unless otherwise stated. I have not knowingly allowed another to copy my work. Please read our Academic Honesty PolicyLinks to an external site. here.
+
+Assessment Overview
+Assessment Format:	CW - Essay
+Mode of Submission:	Canvas: Assignment with Submission
+Where your assessment requires you to submit work to Canvas or an External Tool, it is not recommended to submit via the Canvas App due to some limitations in the App functionality. We would suggest instead that submission is made on a browser from a computer or mobile device.
+
+It is not recommended that you submit your assignment or take a quiz on a cellular or satellite connection. This is because loss of internet connection during assessment is most commonly associated with these services, although we understand that sometimes this is the only option. Wherever possible, we would recommend that assessments are submitted or undertaken on WiFi or hardwired (ethernet) connections.
+
+Large files are best submitted on a hardwired internet connection (i.e., not WiFi).
+
+Weighting:	This assessment is worth 50% of the Module mark
+Assessment Level:	5 Generic Assessment Criteria and Marking StandardsLinks to an external site.
+Element Learning Outcomes:	The element learning outcomes for this assessment are: 1-3
+Marking Approach:	Fine-graded
+Feedback Release Date:	18/05/2026
+ 
+
+Student Support
+Student Support:	
+If you have other questions that aren't related to your module course content:
+
+Ask AruLinks to an external site. is your online tool to ask questions about your life at ARU, use our chatbot, and get in touch with support teams.
+
+My ARULinks to an external site. is your personalised student intranet and the go-to place for everything you need to know about life at ARU.
+
+If you're still unsure, contact our friendly iCentreLinks to an external site. team who can help with many of your questions, or put you in touch with the right team.
+
+ 
+
+Assessment Details
+Assessment Task Detail and Instructions:
+Following an anonymous tip-off, police were called to a potential crime scene, where the machine's owner had allegedly been extorting and stealing files from victims. The computer is situated in a cybersecurity lab at the local university (SCI721). The police arrived at the scene and found the door maglocks unlocked; an officer entered the premises. According to the initial responding officer, there appears to be one computer device running, with two virtual machines on it. One of the VMs is active, while the other appears to be switched off. The officer placed the live virtual machine into a sleep state to preserve the evidence as effectively as possible until an expert could arrive at the scene. The host computer appears empty and contains no evidential data of interest. (so only look at the two VMs).
+
+
+Due to a labour shortage in the digital forensics job market, support is needed on-site where the computer was found. The police have determined that they require an expert in live investigations to assist them, and you have been asked to participate.  
+
+
+You are tasked with conducting a forensic examination of the two virtual machines and any other items found at the scene. (Don't worry; the police will manage the collection of anything else, which will be presented to you for analysis if deemed necessary). One of the victims in this case has granted access to the emails you may need for the investigation to link the suspect to the virtual machines. Do you know what it takes to conduct a live investigation and follow up on this with a court date?
+
+Note:
+
+It's expected that once you have completed the work on the live machine, the PC will no longer be available to you, so please get everything you need the first time. Through certain forensic processes, you might be able to see a "live" machine again in the future (as revealed later in the module).
+
+This will happen in person ONLY and in Teaching week 6 (28th February 9 am, arrive at SCI721 promptly on time). You must attend the crime scene on time, just like the live brief has instructed. 
+
+If you are sick and I receive an official absence notification from ARUs' automated email system, I will start your machine when you are back to full health.
+
+Guidance Resources:
+Students are expected to draw upon the forensic artefacts and expertise learned in their previous modules. You are expected to attend class, complete all the labs (and optional labs), and keep notes in your student-managed learning.
+
+Students are expected to complete all their labs, read books, and refine their use of the tools required for live investigations. They are also expected to adhere to the ACPO good practise guidelines, the standards set out by the forensic science regulator, and ISO 27037/17025. PowerShell will be a key part of their investigation, as will identifying suspect files, processes, and installed software. 
+
+Assessment Marking Criteria / Scheme:
+Students are expected to submit the following documents:
+
+Evidence intake form with Chain of Custody paperwork.
+Forensic report detailing any exhibits they wish to produce and include for the court. (including their PS1 scripts commented/indented, etc.), transcripts of actions taken (or errors) and any HTML report output, if created. (no logs, no points)
+An expert witness report detailing what they did (first person) and an expert opinion about the suspect.
+Their contemporaneous notes with dates and times of what they did (by hand), which are scanned in
+All documents must be uploaded to Canvas (not zipped). The court will receive all files before the hearing begins.
+You are required to use the template given to you (found in week 4's module section), which has a yellow-highlighted section. If you can not find it/access it, please tell your instructor ASAP!
+The final deliverable will be:
+
+PS1 script/scripts + HTML report gained from the script
+Forensic full report on the template provided (mentioned above)
+contemporaneous notes, that are handwritten, with times and dates, as well as evidence intake forms 
+If you have a SORA and agreed with your module leader, a digital copy will be allowed (all other students must handwrite the items).
+All of the above, will be sent to court in a bundle to your barrister (module leader will do this part)
+Marking scheme
+
+The documentation above has been completed to a high standard, and your PS1 scripts/output adequately cover the files you may need, including sufficient logging and HTML report output. 20% 
+
+◦ Were there any files or metadata that might have been exported from previous users, downloaded, or linked to the method of alleged extortion? If so, are there any copies on the volume? 20%
+◦ Are there any indications that hidden or suspicious mechanisms have been employed on the VM? If so, what evidence do you possess, and how might it assist the investigation? 20%
+◦ In the VM memory, are any files, data or processes of interest linking to the second machine? 20%
+◦ Upon investigating the second VM, have you discovered anything suggesting the two charged offences have been committed? Who was the individual(s) responsible for these acts? 20%
+
+Feedback Arrangements:
+Feedback will be sent via Canvas in 20 working days, as usual.
+
+Links to important regulations/advice about late submissions etc. 
+Students must review the new ARU AI regulations to see how their assessments can benefit from AI without getting into trouble. If a student fails to submit their work on time, their module grade (unless mitigated) will be capped at 40%. An overall 10% penalty will be applied if they submit after 2 p.m. on the submission day but before midnight.
+
+Artificial Intelligence Tools:
+Agreed Category of AI Use: This assessment is a Category Two: Independent Use of AI as a Research Tool assessment
+
+What does this mean for this assignment: You are allowed to use AI tools in the creation of your summative submission in the same way as you would use other learning tools, such as books, webpages, and journal articles. You should always use any of these tools in a responsible and ethical way that is consistent with our academic rules and regulations.  For more information, please visit your library webpage resource for AI tools here: https://anglia.libguides.com/AI/Links to an external site. 
+
+Re-Assessment Arrangements:
+These will be communicated closer to the time. It will be the same assessment, and you must use the feedback given during this module to help you with the next attempt.

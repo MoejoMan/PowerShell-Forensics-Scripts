@@ -1,4 +1,9 @@
 @echo off
+REM ============================================================
+REM  Forensic Data Collection - Launch Script
+REM  Joseph Hayes | Digital Forensics Assessment
+REM ============================================================
+
 REM Check if running as Administrator
 net session >nul 2>&1
 if %errorlevel% neq 0 (
@@ -7,37 +12,36 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-REM If we get here, we're running as admin
 echo.
 echo =====================================================
-echo   Digital Forensics Data Collection Script
+echo   Digital Forensics Data Collection
 echo =====================================================
 echo.
-echo Running with Administrator privileges...
-echo Script location: %~dp0
+echo   1. Single VM collection  (you provide a label)
+echo   2. Multi-VM batch mode   (loops over multiple VMs)
 echo.
+set /p MODE="Select mode (1 or 2): "
 
-REM Change to script directory
 cd /d "%~dp0"
 
-REM Build argument string from batch params (supports -VmLabel, -SkipRamDump, -SkipHashes)
-set "PS_ARGS="
-:parse
-if "%~1"=="" goto :run
-set "PS_ARGS=%PS_ARGS% %1"
-shift
-goto :parse
+if "%MODE%"=="2" (
+    echo.
+    echo Starting Multi-VM Batch Mode...
+    echo You will be prompted for each VM label and options.
+    echo.
+    powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -BatchMode
+) else (
+    set /p LABEL="Enter VM label (e.g. VM1_Live): "
+    set /p SKIPRAM="Skip RAM dump? (Y/N): "
+    set "PS_ARGS=-VmLabel %LABEL%"
+    if /i "%SKIPRAM%"=="Y" set "PS_ARGS=%PS_ARGS% -SkipRamDump"
+    echo.
+    echo Starting collection for: %LABEL%
+    powershell.exe -ExecutionPolicy Bypass -File "main.ps1" %PS_ARGS%
+)
 
-:run
-REM Run the PowerShell script
-echo Starting data collection...
-powershell.exe -ExecutionPolicy Bypass -File "main.ps1" %PS_ARGS%
-
-REM Keep window open so user can see results
 echo.
 echo =====================================================
-echo Data collection completed!
-echo Check the Evidence folder for collected data
-echo Check the Transcript folder for execution logs
+echo  Done! Check Evidence and HTMLReport folders.
 echo =====================================================
 pause
