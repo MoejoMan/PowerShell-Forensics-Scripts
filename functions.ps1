@@ -12,7 +12,7 @@ function Export-MemoryDump {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Dumping RAM ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Dumping RAM ==="
     $result = [pscustomobject]@{
         Success = $false
         Path    = $null
@@ -21,7 +21,7 @@ function Export-MemoryDump {
 
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Output "WARNING: Not running as administrator; WinPmem may fail."
+        Write-Host "WARNING: Not running as administrator; WinPmem may fail."
     }
 
     $candidatePaths = @(
@@ -33,23 +33,23 @@ function Export-MemoryDump {
     $winpmem = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
     if (-not $winpmem) {
-        Write-Output "ERROR: WinPmem not found. Checked:"
-        $candidatePaths | ForEach-Object { Write-Output "  $_" }
+        Write-Host "ERROR: WinPmem not found. Checked:"
+        $candidatePaths | ForEach-Object { Write-Host "  $_" }
         $result.Error = "WinPmem not found"
         return $result
     }
 
     try {
         $outputFile = Join-Path $OutputPath "memory_$(Get-Date -Format 'ddMMyyyy-HHmmss').raw"
-        Write-Output "Acquiring memory... this may take a minute"
-        Write-Output "Using WinPmem: $winpmem"
+        Write-Host "Acquiring memory... this may take a minute"
+        Write-Host "Using WinPmem: $winpmem"
 
         $winpmemOutput = & $winpmem acquire --progress "$outputFile" 2>&1
         $exitCode = $LASTEXITCODE
 
         if ($winpmemOutput) {
-            Write-Output "WinPmem output:"
-            $winpmemOutput | ForEach-Object { Write-Output "  $_" }
+            Write-Host "WinPmem output:"
+            $winpmemOutput | ForEach-Object { Write-Host "  $_" }
         }
 
         if ($exitCode -ne 0) {
@@ -60,7 +60,7 @@ function Export-MemoryDump {
         if (Test-Path $outputFile) {
             $result.Success = $true
             $result.Path = $outputFile
-            Write-Output "RAM saved to: $outputFile"
+            Write-Host "RAM saved to: $outputFile"
             return $result
         }
 
@@ -80,15 +80,15 @@ function Get-ProcessList {
     param(
         [string]$OutputPath
     )
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Running Processes ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Running Processes ==="
     try {
         $processes = Get-Process | Select-Object Name, Id, CPU, WorkingSet, Path
         $processes | Format-Table -AutoSize
         $processes | Export-Csv "$OutputPath\processes.csv" -NoTypeInformation
-        Write-Output "Processes saved to: $OutputPath\processes.csv"
+        Write-Host "Processes saved to: $OutputPath\processes.csv"
         return $processes
     } catch {
-        Write-Output "ERROR collecting processes: $_"
+        Write-Host "ERROR collecting processes: $_"
         return $null
     }
 }
@@ -98,15 +98,15 @@ function Get-UserList {
         [string]$OutputPath
     )
     # Gathers local user accounts and exports them to CSV; returns the user objects.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Local User Accounts ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Local User Accounts ==="
     try {
         $users = Get-LocalUser | Select-Object Name, Enabled, Description, LastLogon
         $users | Format-Table -AutoSize
         $users | Export-Csv "$OutputPath\users.csv" -NoTypeInformation
-        Write-Output "Users saved to: $OutputPath\users.csv"
+        Write-Host "Users saved to: $OutputPath\users.csv"
         return $users
     } catch {
-        Write-Output "ERROR collecting users: $_"
+        Write-Host "ERROR collecting users: $_"
         return $null
     }
 }
@@ -116,15 +116,15 @@ function Get-NetworkConnections {
         [string]$OutputPath
     )
     # Captures current TCP connections (local/remote addresses and ports) and exports them to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting TCP Connections ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting TCP Connections ==="
     try {
         $tcpConnections = Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State
         $tcpConnections | Format-Table -AutoSize
         $tcpConnections | Export-Csv "$OutputPath\network_tcp.csv" -NoTypeInformation
-        Write-Output "TCP connections saved to: $OutputPath\network_tcp.csv"
+        Write-Host "TCP connections saved to: $OutputPath\network_tcp.csv"
         return $tcpConnections
     } catch {
-        Write-Output "ERROR collecting TCP connections: $_"
+        Write-Host "ERROR collecting TCP connections: $_"
         return $null
     }
 }
@@ -134,15 +134,15 @@ function Get-NetworkNeighbors {
         [string]$OutputPath
     )
     # Captures ARP/neighbor entries to map local network peers; exports to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Neighbors (ARP) ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Neighbors (ARP) ==="
     try {
         $neighbors = Get-NetNeighbor -ErrorAction SilentlyContinue | Select-Object IPAddress, LinkLayerAddress, State, InterfaceAlias
         $neighbors | Format-Table -AutoSize
         $neighbors | Export-Csv "$OutputPath\network_neighbors.csv" -NoTypeInformation
-        Write-Output "Network neighbors saved to: $OutputPath\network_neighbors.csv"
+        Write-Host "Network neighbors saved to: $OutputPath\network_neighbors.csv"
         return $neighbors
     } catch {
-        Write-Output "ERROR collecting network neighbors: $_"
+        Write-Host "ERROR collecting network neighbors: $_"
         return $null
     }
 }
@@ -152,10 +152,10 @@ function Get-PrefetchFiles {
         [string]$OutputPath
     )
     # Enumerates Windows prefetch (.pf) files for recent program execution artefacts and exports to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Output "WARNING: Not running as administrator; Prefetch access may be blocked."
+        Write-Host "WARNING: Not running as administrator; Prefetch access may be blocked."
     }
     try {
         $prefetch = Get-ChildItem "C:\Windows\Prefetch\*.pf" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime, Length
@@ -163,13 +163,13 @@ function Get-PrefetchFiles {
         if ($prefetch) {
             $prefetch | Format-Table -AutoSize
             $prefetch | Export-Csv "$OutputPath\prefetch.csv" -NoTypeInformation
-            Write-Output "Prefetch files saved to: $OutputPath\prefetch.csv"
+            Write-Host "Prefetch files saved to: $OutputPath\prefetch.csv"
         } else {
-            Write-Output "(No prefetch files found)"
+            Write-Host "(No prefetch files found)"
         }
         return $prefetch
     } catch {
-        Write-Output "ERROR collecting prefetch files: $_"
+        Write-Host "ERROR collecting prefetch files: $_"
         return $null
     }
 }
@@ -272,7 +272,7 @@ function New-HTMLReport {
         [object]$EmailArtefacts,
         [object]$MemoryFiles
     )
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
     try {
         # Convert objects to clean arrays, removing format objects
@@ -291,7 +291,7 @@ function New-HTMLReport {
         if ($EventLogApplication) { $EventLogApplication = @($EventLogApplication | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message) }
         if ($WmiPersistence) { $WmiPersistence = @($WmiPersistence | Where-Object { $_.Type -or $_.Name } | Select-Object Type, Name, QueryOrClass, Consumer, CommandLine, OtherFields) }
 
-        # --- Filter new sections (strip Write-Output strings from pipeline) ---
+        # --- Filter new sections (strip Write-Host strings from pipeline) ---
         if ($AlternateDataStreams) { $AlternateDataStreams = @($AlternateDataStreams | Where-Object { $_.FilePath } | Select-Object FilePath, StreamName, StreamSize, FileModified) }
         if ($HiddenFiles) { $HiddenFiles = @($HiddenFiles | Where-Object { $_.FullPath } | Select-Object FullPath, Name, SizeKB, Attributes, Created, Modified) }
         if ($EncryptedVolumes) { $EncryptedVolumes = @($EncryptedVolumes | Where-Object { $_.Type } | Select-Object Type, Identifier, Status, Detail) }
@@ -708,10 +708,11 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         }
 
         if ($MemoryStrings -and @($MemoryStrings).Count -gt 0) {
+            if ($MemoryStrings) { $MemoryStrings = @($MemoryStrings | Where-Object { $_.Source } | Select-Object Source, Plugin, Detail, File) }
             $html += @"
 <details open>
-    <summary>Memory String Analysis ($(@($MemoryStrings).Count) IOCs)</summary>
-    <p><em>IP addresses, emails, URLs, and bitcoin addresses extracted from the RAM dump.</em></p>
+    <summary>Memory Analysis — Volatility &amp; Strings ($(@($MemoryStrings).Count) IOC categories)</summary>
+    <p><em>Automated memory analysis results. Volatility 3 plugin output and strings extraction for emails, IPs, URLs, UNC paths, bitcoin addresses, and password references. Full output files are in the <code>memory_analysis</code> subfolder.</em></p>
     $(@($MemoryStrings) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -977,9 +978,9 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
 
         $reportPath = "$OutputPath\forensic_report.html"
         $html | Out-File $reportPath -Encoding UTF8
-        Write-Output "HTML report saved to: $reportPath"
+        Write-Host "HTML report saved to: $reportPath"
     } catch {
-        Write-Output "ERROR generating HTML report: $_"
+        Write-Host "ERROR generating HTML report: $_"
     }
 }
 
@@ -988,7 +989,7 @@ function Get-InstalledPrograms {
         [string]$OutputPath
     )
     # Enumerates installed applications (registry + Appx) and exports a CSV listing.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Installed Programs ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Installed Programs ==="
     try {
         $uninstallPaths = @(
             'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
@@ -1027,13 +1028,13 @@ function Get-InstalledPrograms {
 
         if ($all.Count -gt 0) {
             $all | Export-Csv "$OutputPath\installed_programs.csv" -NoTypeInformation
-            Write-Output "Installed programs saved to: $OutputPath\installed_programs.csv"
+            Write-Host "Installed programs saved to: $OutputPath\installed_programs.csv"
         } else {
-            Write-Output "(No installed programs found)"
+            Write-Host "(No installed programs found)"
         }
         return $all
     } catch {
-        Write-Output "ERROR collecting installed programs: $_"
+        Write-Host "ERROR collecting installed programs: $_"
         return $null
     }
 }
@@ -1043,16 +1044,16 @@ function Get-ServicesList {
         [string]$OutputPath
     )
     # Lists Windows services and exports basic status and configuration to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Services ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Services ==="
     try {
         $services = Get-Service | Select-Object Name, DisplayName, Status, StartType
         if ($services) {
             $services | Export-Csv "$OutputPath\services.csv" -NoTypeInformation
-            Write-Output "Services saved to: $OutputPath\services.csv"
+            Write-Host "Services saved to: $OutputPath\services.csv"
         }
         return $services
     } catch {
-        Write-Output "ERROR collecting services: $_"
+        Write-Host "ERROR collecting services: $_"
         return $null
     }
 }
@@ -1062,7 +1063,7 @@ function Get-ScheduledTasksList {
         [string]$OutputPath
     )
     # Retrieves scheduled tasks, their last/next run times and actions, then exports to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Scheduled Tasks ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Scheduled Tasks ==="
     try {
         $tasks = Get-ScheduledTask -ErrorAction SilentlyContinue | ForEach-Object {
             $info = $_ | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
@@ -1080,11 +1081,11 @@ function Get-ScheduledTasksList {
 
         if ($tasks) {
             $tasks | Export-Csv "$OutputPath\tasks.csv" -NoTypeInformation
-            Write-Output "Scheduled tasks saved to: $OutputPath\tasks.csv"
+            Write-Host "Scheduled tasks saved to: $OutputPath\tasks.csv"
         }
         return $tasks
     } catch {
-        Write-Output "ERROR collecting scheduled tasks: $_"
+        Write-Host "ERROR collecting scheduled tasks: $_"
         return $null
     }
 }
@@ -1094,16 +1095,16 @@ function Get-NetworkConfig {
         [string]$OutputPath
     )
     # Captures network adapter configuration (IP addresses, DNS, gateways) and exports to CSV.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Configuration ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Configuration ==="
     try {
         $adapters = Get-NetIPConfiguration -ErrorAction SilentlyContinue | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway
         if ($adapters) {
             $adapters | Export-Csv "$OutputPath\network_config.csv" -NoTypeInformation
-            Write-Output "Network configuration saved to: $OutputPath\network_config.csv"
+            Write-Host "Network configuration saved to: $OutputPath\network_config.csv"
         }
         return $adapters
     } catch {
-        Write-Output "ERROR collecting network configuration: $_"
+        Write-Host "ERROR collecting network configuration: $_"
         return $null
     }
 }
@@ -1115,7 +1116,7 @@ function Get-EventLogTriage {
     )
 
         # Collects recent events from Security, System, and Application logs (default last 3 days) and exports CSVs.
-        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
     $logs = @{
         Security    = 'event_security.csv'
         System      = 'event_system.csv'
@@ -1137,14 +1138,14 @@ function Get-EventLogTriage {
 
             if ($events) {
                 $events | Export-Csv $target -NoTypeInformation
-                Write-Output "$logName events saved to: $target"
+                Write-Host "$logName events saved to: $target"
             } else {
-                Write-Output "(No $logName events found in last $Days days)"
+                Write-Host "(No $logName events found in last $Days days)"
             }
 
             $results[$logName] = $events
         } catch {
-            Write-Output "ERROR collecting $logName log: $_"
+            Write-Host "ERROR collecting $logName log: $_"
             $results[$logName] = $null
         }
     }
@@ -1162,7 +1163,7 @@ function Get-WmiPersistence {
     )
 
         # Collects WMI persistence artifacts (filters, consumers, and bindings) to detect persistent techniques.
-        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
     $items = @()
 
     try {
@@ -1178,7 +1179,7 @@ function Get-WmiPersistence {
             }
         }
     } catch {
-        Write-Output "WARNING: Failed reading __EventFilter - $_"
+        Write-Host "WARNING: Failed reading __EventFilter - $_"
     }
 
     try {
@@ -1194,7 +1195,7 @@ function Get-WmiPersistence {
             }
         }
     } catch {
-        Write-Output "WARNING: Failed reading CommandLineEventConsumer - $_"
+        Write-Host "WARNING: Failed reading CommandLineEventConsumer - $_"
     }
 
     try {
@@ -1210,7 +1211,7 @@ function Get-WmiPersistence {
             }
         }
     } catch {
-        Write-Output "WARNING: Failed reading ActiveScriptEventConsumer - $_"
+        Write-Host "WARNING: Failed reading ActiveScriptEventConsumer - $_"
     }
 
     try {
@@ -1226,14 +1227,14 @@ function Get-WmiPersistence {
             }
         }
     } catch {
-        Write-Output "WARNING: Failed reading __FilterToConsumerBinding - $_"
+        Write-Host "WARNING: Failed reading __FilterToConsumerBinding - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\wmi_persistence.csv" -NoTypeInformation
-        Write-Output "WMI persistence saved to: $OutputPath\wmi_persistence.csv"
+        Write-Host "WMI persistence saved to: $OutputPath\wmi_persistence.csv"
     } else {
-        Write-Output "(No WMI persistence entries found)"
+        Write-Host "(No WMI persistence entries found)"
     }
 
     return $items
@@ -1244,7 +1245,7 @@ function Get-Autoruns {
         [string]$OutputPath
     )
         # Enumerates autorun entries from registry Run keys and standard Startup folders; exports findings to CSV.
-        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
     $items = @()
 
     $runPaths = @(
@@ -1267,7 +1268,7 @@ function Get-Autoruns {
                     }
                 }
             } catch {
-                Write-Output "WARNING: Failed to read $path - $_"
+                Write-Host "WARNING: Failed to read $path - $_"
             }
         }
     }
@@ -1289,16 +1290,16 @@ function Get-Autoruns {
                     }
                 }
             } catch {
-                Write-Output "WARNING: Failed to read $dir - $_"
+                Write-Host "WARNING: Failed to read $dir - $_"
             }
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\autoruns.csv" -NoTypeInformation
-        Write-Output "Autoruns saved to: $OutputPath\autoruns.csv"
+        Write-Host "Autoruns saved to: $OutputPath\autoruns.csv"
     } else {
-        Write-Output "(No autoruns found)"
+        Write-Host "(No autoruns found)"
     }
     return $items
 }
@@ -1315,7 +1316,7 @@ function Get-AlternateDataStreams {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Alternate Data Streams (ADS) ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Alternate Data Streams (ADS) ==="
     $items = @()
 
     # Directories most likely to contain user-planted ADS
@@ -1350,15 +1351,15 @@ function Get-AlternateDataStreams {
                     } catch { }
                 }
         } catch {
-            Write-Output "WARNING: ADS scan failed on $dir - $_"
+            Write-Host "WARNING: ADS scan failed on $dir - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\alternate_data_streams.csv" -NoTypeInformation
-        Write-Output "ADS results saved to: $OutputPath\alternate_data_streams.csv"
+        Write-Host "ADS results saved to: $OutputPath\alternate_data_streams.csv"
     } else {
-        Write-Output "(No suspicious alternate data streams found)"
+        Write-Host "(No suspicious alternate data streams found)"
     }
     return $items
 }
@@ -1371,7 +1372,7 @@ function Get-HiddenFiles {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Hidden & System Files ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Hidden & System Files ==="
     $items = @()
 
     $scanPaths = @(
@@ -1401,15 +1402,15 @@ function Get-HiddenFiles {
                     }
                 }
         } catch {
-            Write-Output "WARNING: Hidden-file scan failed on $dir - $_"
+            Write-Host "WARNING: Hidden-file scan failed on $dir - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\hidden_files.csv" -NoTypeInformation
-        Write-Output "Hidden files saved to: $OutputPath\hidden_files.csv"
+        Write-Host "Hidden files saved to: $OutputPath\hidden_files.csv"
     } else {
-        Write-Output "(No hidden/system files found in scanned paths)"
+        Write-Host "(No hidden/system files found in scanned paths)"
     }
     return $items
 }
@@ -1422,7 +1423,7 @@ function Get-EncryptedVolumeDetection {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Encrypted Volumes & Containers ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Encrypted Volumes & Containers ==="
     $items = @()
 
     # BitLocker status
@@ -1437,7 +1438,7 @@ function Get-EncryptedVolumeDetection {
             }
         }
     } catch {
-        Write-Output "WARNING: BitLocker query failed (may not be available) - $_"
+        Write-Host "WARNING: BitLocker query failed (may not be available) - $_"
     }
 
     # Look for VeraCrypt / TrueCrypt containers by extension or known process
@@ -1470,9 +1471,9 @@ function Get-EncryptedVolumeDetection {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\encrypted_volumes.csv" -NoTypeInformation
-        Write-Output "Encrypted volume info saved to: $OutputPath\encrypted_volumes.csv"
+        Write-Host "Encrypted volume info saved to: $OutputPath\encrypted_volumes.csv"
     } else {
-        Write-Output "(No encrypted volumes or containers detected)"
+        Write-Host "(No encrypted volumes or containers detected)"
     }
     return $items
 }
@@ -1489,7 +1490,7 @@ function Get-ZoneIdentifierInfo {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Zone.Identifier (Download Origins) ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Zone.Identifier (Download Origins) ==="
     $items = @()
 
     $scanPaths = @(
@@ -1537,15 +1538,15 @@ function Get-ZoneIdentifierInfo {
                 } catch { }
             }
         } catch {
-            Write-Output "WARNING: Zone.Identifier scan failed on $dir - $_"
+            Write-Host "WARNING: Zone.Identifier scan failed on $dir - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\zone_identifiers.csv" -NoTypeInformation
-        Write-Output "Zone.Identifier data saved to: $OutputPath\zone_identifiers.csv"
+        Write-Host "Zone.Identifier data saved to: $OutputPath\zone_identifiers.csv"
     } else {
-        Write-Output "(No Zone.Identifier data found)"
+        Write-Host "(No Zone.Identifier data found)"
     }
     return $items
 }
@@ -1558,7 +1559,7 @@ function Get-RecentFileActivity {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recent File Activity (MRU / Recent Docs) ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recent File Activity (MRU / Recent Docs) ==="
     $items = @()
 
     # Recent Items folder (LNK shortcuts)
@@ -1623,9 +1624,9 @@ function Get-RecentFileActivity {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\recent_file_activity.csv" -NoTypeInformation
-        Write-Output "Recent file activity saved to: $OutputPath\recent_file_activity.csv"
+        Write-Host "Recent file activity saved to: $OutputPath\recent_file_activity.csv"
     } else {
-        Write-Output "(No recent file activity found)"
+        Write-Host "(No recent file activity found)"
     }
     return $items
 }
@@ -1642,7 +1643,7 @@ function Get-USBDeviceHistory {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting USB Device History ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting USB Device History ==="
     $items = @()
 
     $usbstorPath = 'HKLM:\SYSTEM\CurrentControlSet\Enum\USBSTOR'
@@ -1664,10 +1665,10 @@ function Get-USBDeviceHistory {
                 }
             }
         } catch {
-            Write-Output "WARNING: USBSTOR read failed - $_"
+            Write-Host "WARNING: USBSTOR read failed - $_"
         }
     } else {
-        Write-Output "(USBSTOR registry key not found)"
+        Write-Host "(USBSTOR registry key not found)"
     }
 
     # Also capture currently mounted removable drives
@@ -1686,9 +1687,9 @@ function Get-USBDeviceHistory {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\usb_device_history.csv" -NoTypeInformation
-        Write-Output "USB device history saved to: $OutputPath\usb_device_history.csv"
+        Write-Host "USB device history saved to: $OutputPath\usb_device_history.csv"
     } else {
-        Write-Output "(No USB device history found)"
+        Write-Host "(No USB device history found)"
     }
     return $items
 }
@@ -1704,7 +1705,7 @@ function Get-RecycleBinContents {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recycle Bin Contents ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Recycle Bin Contents ==="
     $items = @()
 
     try {
@@ -1723,14 +1724,14 @@ function Get-RecycleBinContents {
             }
         }
     } catch {
-        Write-Output "WARNING: Recycle Bin enumeration failed - $_"
+        Write-Host "WARNING: Recycle Bin enumeration failed - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\recycle_bin.csv" -NoTypeInformation
-        Write-Output "Recycle Bin contents saved to: $OutputPath\recycle_bin.csv"
+        Write-Host "Recycle Bin contents saved to: $OutputPath\recycle_bin.csv"
     } else {
-        Write-Output "(Recycle Bin is empty or inaccessible)"
+        Write-Host "(Recycle Bin is empty or inaccessible)"
     }
     return $items
 }
@@ -1747,19 +1748,19 @@ function Get-DNSCache {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting DNS Cache ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting DNS Cache ==="
     try {
         $dns = Get-DnsClientCache -ErrorAction SilentlyContinue |
             Select-Object Entry, RecordName, RecordType, Status, Section, TimeToLive, DataLength, Data
         if ($dns) {
             $dns | Export-Csv "$OutputPath\dns_cache.csv" -NoTypeInformation
-            Write-Output "DNS cache saved to: $OutputPath\dns_cache.csv"
+            Write-Host "DNS cache saved to: $OutputPath\dns_cache.csv"
         } else {
-            Write-Output "(DNS cache is empty)"
+            Write-Host "(DNS cache is empty)"
         }
         return $dns
     } catch {
-        Write-Output "WARNING: DNS cache collection failed - $_"
+        Write-Host "WARNING: DNS cache collection failed - $_"
         return $null
     }
 }
@@ -1772,19 +1773,19 @@ function Get-ClipboardContents {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Capturing Clipboard Contents ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Capturing Clipboard Contents ==="
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
         $clip = [System.Windows.Forms.Clipboard]::GetText()
         if ($clip) {
             $clip | Out-File "$OutputPath\clipboard.txt" -Encoding UTF8
-            Write-Output "Clipboard contents saved to: $OutputPath\clipboard.txt"
+            Write-Host "Clipboard contents saved to: $OutputPath\clipboard.txt"
         } else {
-            Write-Output "(Clipboard is empty or contains non-text data)"
+            Write-Host "(Clipboard is empty or contains non-text data)"
         }
         return $clip
     } catch {
-        Write-Output "WARNING: Clipboard capture failed - $_"
+        Write-Host "WARNING: Clipboard capture failed - $_"
         return $null
     }
 }
@@ -1796,7 +1797,7 @@ function Get-MappedDrivesAndShares {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Mapped Drives & Network Shares ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Mapped Drives & Network Shares ==="
     $items = @()
 
     # Mapped drives (net use)
@@ -1841,9 +1842,9 @@ function Get-MappedDrivesAndShares {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\mapped_drives_shares.csv" -NoTypeInformation
-        Write-Output "Mapped drives/shares saved to: $OutputPath\mapped_drives_shares.csv"
+        Write-Host "Mapped drives/shares saved to: $OutputPath\mapped_drives_shares.csv"
     } else {
-        Write-Output "(No mapped drives or shares found)"
+        Write-Host "(No mapped drives or shares found)"
     }
     return $items
 }
@@ -1860,7 +1861,7 @@ function Get-PowerShellHistory {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting PowerShell Command History ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting PowerShell Command History ==="
     $items = @()
 
     # PSReadLine history for each user profile
@@ -1884,16 +1885,16 @@ function Get-PowerShellHistory {
                 $destFile = Join-Path $OutputPath "ps_history_$($prof.Name).txt"
                 Copy-Item -Path $histPath -Destination $destFile -ErrorAction SilentlyContinue
             } catch {
-                Write-Output "WARNING: Could not read PS history for $($prof.Name) - $_"
+                Write-Host "WARNING: Could not read PS history for $($prof.Name) - $_"
             }
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\powershell_history.csv" -NoTypeInformation
-        Write-Output "PowerShell history saved to: $OutputPath\powershell_history.csv"
+        Write-Host "PowerShell history saved to: $OutputPath\powershell_history.csv"
     } else {
-        Write-Output "(No PowerShell history files found)"
+        Write-Host "(No PowerShell history files found)"
     }
     return $items
 }
@@ -1910,7 +1911,7 @@ function Get-RDPAndRemoteSessions {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting RDP & Remote Session Artifacts ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting RDP & Remote Session Artifacts ==="
     $items = @()
 
     # Recent RDP connections (Terminal Server Client)
@@ -1981,9 +1982,9 @@ function Get-RDPAndRemoteSessions {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\rdp_remote_sessions.csv" -NoTypeInformation
-        Write-Output "RDP/remote session data saved to: $OutputPath\rdp_remote_sessions.csv"
+        Write-Host "RDP/remote session data saved to: $OutputPath\rdp_remote_sessions.csv"
     } else {
-        Write-Output "(No RDP or remote session artifacts found)"
+        Write-Host "(No RDP or remote session artifacts found)"
     }
     return $items
 }
@@ -1992,65 +1993,269 @@ function Get-RDPAndRemoteSessions {
 # MEMORY ANALYSIS (POST-ACQUISITION)
 # ============================================================================
 
-# Logs the RAM dump details and advises the use of Volatility / strings.exe
-# for proper structured memory analysis.  PowerShell is not suited for
-# byte-level parsing of multi-GB raw dumps; purpose-built tools (Volatility,
-# Rekall, strings.exe) handle this orders of magnitude faster and produce
-# structured output (process trees, handles, injected code, etc.).
+# Performs automated memory analysis on a RAM dump using:
+#   1. Volatility 3 (if vol.py or vol.exe is available) — runs pslist, netscan,
+#      filescan, cmdline, malfind plugins and saves CSV/text output
+#   2. SysInternals strings.exe (if available) — extracts IPs, emails, URLs,
+#      bitcoin addresses, file paths, and passwords from the raw dump
+#   3. Falls back to writing an advisory note if neither tool is present
+#
+# Returns an array of IOC objects (for the HTML report) or $null.
 function Get-MemoryStrings {
     param(
         [string]$OutputPath,
-        [string]$RamDumpPath
+        [string]$RamDumpPath,
+        [string]$ScriptRoot = $PSScriptRoot
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Memory Dump Analysis Note ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Memory Dump Analysis ==="
 
     if (-not $RamDumpPath -or -not (Test-Path $RamDumpPath)) {
-        Write-Output "(No RAM dump available)"
+        Write-Host "(No RAM dump available — skipping memory analysis)"
         return $null
     }
 
     $dumpItem = Get-Item $RamDumpPath
     $sizeMB   = [math]::Round($dumpItem.Length / 1MB, 2)
+    Write-Host "RAM dump: $($dumpItem.Name) ($sizeMB MB)"
 
-    Write-Output "RAM dump acquired: $($dumpItem.Name)"
-    Write-Output "  Size: $sizeMB MB"
-    Write-Output "  Path: $($dumpItem.FullName)"
-    Write-Output ""
-    Write-Output "RECOMMENDATION: Analyse this dump offline using Volatility 3 or strings.exe."
-    Write-Output "  Volatility:  vol.py -f `"$RamDumpPath`" windows.pslist / windows.netscan / windows.filescan"
-    Write-Output "  Strings:     strings.exe -n 6 `"$RamDumpPath`" | findstr /i `"@`" > emails.txt"
-    Write-Output ""
-    Write-Output "PowerShell is not practical for byte-level parsing of $sizeMB MB raw memory images."
+    $memDir = Join-Path $OutputPath "memory_analysis"
+    New-Item -ItemType Directory -Path $memDir -Force | Out-Null
 
-    # Write the note to a file as well (so it appears in the evidence folder)
+    $iocs = @()   # collected IOC items for the HTML report
+
+    # ── 1. VOLATILITY 3 AUTO-ANALYSIS ────────────────────────────────────────
+    $volPaths = @(
+        (Get-Command vol -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Get-Command vol.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Get-Command vol.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Join-Path $ScriptRoot "bin\volatility3\vol.exe"),
+        (Join-Path $ScriptRoot "bin\vol.exe"),
+        (Join-Path $ScriptRoot "bin\vol.py")
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    # Also search for vol.py inside any volatility3-* source tree in bin\
+    if (-not $volPaths) {
+        $volPySearch = Get-ChildItem -Path (Join-Path $ScriptRoot "bin") -Filter "vol.py" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($volPySearch) { $volPaths = @($volPySearch.FullName) }
+    }
+
+    $vol = $volPaths | Select-Object -First 1
+
+    # Check if Python + vol.py is viable
+    $python = $null
+    if (-not $vol) {
+        $python = (Get-Command python -ErrorAction SilentlyContinue).Path
+        if (-not $python) { $python = (Get-Command python3 -ErrorAction SilentlyContinue).Path }
+        if ($python) {
+            # Check if volatility3 is installed as a Python package
+            try {
+                $volCheck = & $python -c "import volatility3; print(volatility3.__file__)" 2>$null
+                if ($volCheck) {
+                    $vol = "python_module"
+                    Write-Host "  Volatility 3 found as Python module"
+                }
+            } catch { }
+        }
+    }
+
+    # If vol is a .py file, we need Python to run it
+    if ($vol -and $vol -ne "python_module" -and $vol -like "*.py") {
+        $python = (Get-Command python -ErrorAction SilentlyContinue).Path
+        if (-not $python) { $python = (Get-Command python3 -ErrorAction SilentlyContinue).Path }
+        if ($python) {
+            $vol = "python_script:$vol"
+            Write-Host "  Volatility 3 source found — will run via Python"
+        } else {
+            Write-Host "  WARNING: vol.py found but Python not available in PATH"
+            $vol = $null
+        }
+    }
+
+    if ($vol) {
+        Write-Host "  Running Volatility 3 analysis (this may take several minutes)..."
+        Write-Host "  Using: $vol"
+
+        # Plugins to run — each maps to inter-VM linking or suspect profiling
+        $plugins = @(
+            @{ Name = 'windows.pslist';    Desc = 'Running processes' },
+            @{ Name = 'windows.netscan';   Desc = 'Network connections (inter-VM links)' },
+            @{ Name = 'windows.filescan';  Desc = 'Open file handles' },
+            @{ Name = 'windows.cmdline';   Desc = 'Process command lines' },
+            @{ Name = 'windows.malfind';   Desc = 'Injected/suspicious code regions' },
+            @{ Name = 'windows.registry.hivelist'; Desc = 'Registry hives in memory' }
+        )
+
+        foreach ($plugin in $plugins) {
+            $outFile = Join-Path $memDir "$($plugin.Name -replace '\.','_').txt"
+            Write-Host "  [$($plugin.Name)] $($plugin.Desc)..."
+            try {
+                if ($vol -eq "python_module") {
+                    & $python -m volatility3 -f $RamDumpPath $plugin.Name 2>$null | Out-File $outFile -Encoding UTF8
+                } elseif ($vol -like "python_script:*") {
+                    $volScript = $vol -replace '^python_script:',''
+                    $volDir = Split-Path $volScript -Parent
+                    $env:PYTHONPATH = $volDir
+                    & $python $volScript -f $RamDumpPath $plugin.Name 2>$null | Out-File $outFile -Encoding UTF8
+                } else {
+                    & $vol -f $RamDumpPath $plugin.Name 2>$null | Out-File $outFile -Encoding UTF8
+                }
+                if (Test-Path $outFile) {
+                    $lineCount = (Get-Content $outFile -ErrorAction SilentlyContinue | Measure-Object).Count
+                    Write-Host "    -> $lineCount lines saved to $outFile"
+                    if ($lineCount -gt 2) {
+                        $iocs += [pscustomobject]@{
+                            Source  = 'Volatility3'
+                            Plugin  = $plugin.Name
+                            Detail  = "$($plugin.Desc) — $lineCount entries"
+                            File    = $outFile
+                        }
+                    }
+                }
+            } catch {
+                Write-Host "    WARNING: $($plugin.Name) failed - $_"
+            }
+        }
+        Write-Host "  Volatility analysis complete -> $memDir"
+    } else {
+        Write-Host "  Volatility 3 not found (checked PATH and bin\ folder)"
+        Write-Host "  To enable auto-analysis, install Volatility 3:"
+        Write-Host "    pip install volatility3"
+        Write-Host "    Or download vol.exe from: https://github.com/volatilityfoundation/volatility3"
+        Write-Host "    Place in: $ScriptRoot\bin\"
+    }
+
+    # ── 2. STRINGS EXTRACTION ────────────────────────────────────────────────
+    $stringsPaths = @(
+        (Get-Command strings -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Get-Command strings.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Get-Command strings64.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
+        (Join-Path $ScriptRoot "bin\strings64.exe"),
+        (Join-Path $ScriptRoot "bin\strings.exe"),
+        (Join-Path $ScriptRoot "bin\Strings\strings64.exe"),
+        (Join-Path $ScriptRoot "bin\Strings\strings.exe")
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $strings = $stringsPaths | Select-Object -First 1
+
+    if ($strings) {
+        Write-Host ""
+        Write-Host "  Running strings extraction on RAM dump..."
+        Write-Host "  Using: $strings"
+
+        # Accept EULA silently for SysInternals strings
+        $stringsArgs = @('-n', '8', '-nobanner', '-accepteula', $RamDumpPath)
+
+        # Define forensic patterns to search for
+        $patterns = @(
+            @{ Name = 'emails';     Regex = '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}';  Desc = 'Email addresses' },
+            @{ Name = 'ipv4';       Regex = '\b(?:\d{1,3}\.){3}\d{1,3}\b';                      Desc = 'IPv4 addresses' },
+            @{ Name = 'urls';       Regex = 'https?://[^\s"''<>]+';                              Desc = 'HTTP/HTTPS URLs' },
+            @{ Name = 'bitcoin';    Regex = '\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b';             Desc = 'Bitcoin addresses' },
+            @{ Name = 'passwords';  Regex = '(?i)password[\s:=]+\S+';                           Desc = 'Password references' },
+            @{ Name = 'unc_paths';  Regex = '\\\\[a-zA-Z0-9._-]+\\[a-zA-Z0-9$._-]+';          Desc = 'UNC network paths (inter-VM links)' }
+        )
+
+        try {
+            # Run strings once and save full output to temp file for grep
+            $rawStringsFile = Join-Path $memDir "strings_raw.txt"
+            Write-Host "  Extracting strings (min length 8)... this may take a few minutes"
+            & $strings $stringsArgs 2>$null | Out-File $rawStringsFile -Encoding UTF8
+
+            if (Test-Path $rawStringsFile) {
+                $rawSize = [math]::Round((Get-Item $rawStringsFile).Length / 1MB, 1)
+                Write-Host "  Raw strings: $rawSize MB -> $rawStringsFile"
+
+                # Now grep each pattern from the raw strings
+                foreach ($pat in $patterns) {
+                    $destFile = Join-Path $memDir "strings_$($pat.Name).txt"
+                    Write-Host "  Searching for $($pat.Desc)..."
+                    try {
+                        $matches = Select-String -Path $rawStringsFile -Pattern $pat.Regex -AllMatches -ErrorAction SilentlyContinue
+                        if ($matches) {
+                            # Deduplicate and save
+                            $unique = $matches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
+                            $unique | Out-File $destFile -Encoding UTF8
+                            $count = $unique.Count
+                            Write-Host "    -> $count unique $($pat.Desc) saved to $destFile"
+
+                            if ($count -gt 0) {
+                                # Add top hits to IOC list for HTML report
+                                $preview = ($unique | Select-Object -First 10) -join '; '
+                                $iocs += [pscustomobject]@{
+                                    Source  = 'StringsExtraction'
+                                    Plugin  = $pat.Name
+                                    Detail  = "$count unique $($pat.Desc) — top: $preview"
+                                    File    = $destFile
+                                }
+                            }
+                        } else {
+                            Write-Host "    (none found)"
+                        }
+                    } catch {
+                        Write-Host "    WARNING: Pattern search failed for $($pat.Name) - $_"
+                    }
+                }
+            }
+        } catch {
+            Write-Host "  ERROR during strings extraction: $_"
+        }
+
+        Write-Host "  Strings extraction complete -> $memDir"
+    } else {
+        Write-Host ""
+        Write-Host "  strings.exe not found (checked PATH and bin\ folder)"
+        Write-Host "  To enable strings extraction:"
+        Write-Host "    Download: https://learn.microsoft.com/en-us/sysinternals/downloads/strings"
+        Write-Host "    Place strings64.exe in: $ScriptRoot\bin\"
+    }
+
+    # ── 3. SUMMARY NOTE ─────────────────────────────────────────────────────
+    $toolsFound = @()
+    if ($vol) { $toolsFound += "Volatility 3" }
+    if ($strings) { $toolsFound += "strings.exe" }
+    $toolStatus = if ($toolsFound.Count -gt 0) { $toolsFound -join ' + ' } else { "NONE — manual analysis required" }
+
     $note = @"
-MEMORY DUMP ANALYSIS NOTE
-==========================
-File:   $($dumpItem.Name)
-Size:   $sizeMB MB
-Path:   $($dumpItem.FullName)
-Hash:   (see hashes.csv)
+MEMORY DUMP ANALYSIS SUMMARY
+==============================
+File    : $($dumpItem.Name)
+Size    : $sizeMB MB
+Path    : $($dumpItem.FullName)
+Hash    : (see hashes.csv)
+Tools   : $toolStatus
+Results : $memDir
 
-This RAM dump was acquired during live collection and should be analysed
-using a purpose-built memory forensics tool:
+$(if ($iocs.Count -gt 0) {
+    "IOCs FOUND:"
+    foreach ($i in $iocs) { "  [$($i.Source)] $($i.Plugin): $($i.Detail)" }
+} else {
+    "No automated IOCs extracted. Manual analysis recommended."
+})
 
-  Volatility 3 (recommended):
+MANUAL ANALYSIS COMMANDS:
+  Volatility 3:
     vol.py -f "$RamDumpPath" windows.pslist
     vol.py -f "$RamDumpPath" windows.netscan
     vol.py -f "$RamDumpPath" windows.filescan
     vol.py -f "$RamDumpPath" windows.cmdline
+    vol.py -f "$RamDumpPath" windows.malfind
 
-  SysInternals strings.exe:
-    strings.exe -n 6 "$RamDumpPath" | findstr /i "@" > emails.txt
-    strings.exe -n 6 "$RamDumpPath" | findstr /i "http" > urls.txt
-
-PowerShell is not suited to byte-level parsing of large raw memory images.
-The dump is preserved with SHA256 integrity hashing for chain of custody.
+  SysInternals strings:
+    strings.exe -n 8 "$RamDumpPath" | findstr /i "@" > emails.txt
+    strings.exe -n 8 "$RamDumpPath" | findstr /i "http" > urls.txt
+    strings.exe -n 8 "$RamDumpPath" | findstr /i "\\\\" > unc_paths.txt
 "@
 
-    $note | Out-File "$OutputPath\memory_analysis_note.txt" -Encoding UTF8
-    Write-Output "Note saved to: $OutputPath\memory_analysis_note.txt"
+    $note | Out-File "$memDir\memory_analysis_summary.txt" -Encoding UTF8
+    Write-Host ""
+    Write-Host "  Summary saved to: $memDir\memory_analysis_summary.txt"
+
+    if ($iocs.Count -gt 0) {
+        Write-Host "  $($iocs.Count) IOC categories found — see HTML report for details"
+        return $iocs
+    }
 
     return $null
 }
@@ -2066,7 +2271,7 @@ function Get-BrowserArtifactsAndDownloads {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Artifacts & Downloads (best effort) ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Artifacts & Downloads (best effort) ==="
     $browserOut = Join-Path $OutputPath "browser_artifacts"
     New-Item -ItemType Directory -Path $browserOut -Force | Out-Null
 
@@ -2077,13 +2282,13 @@ function Get-BrowserArtifactsAndDownloads {
             $downloads = Get-ChildItem -Path $downloadsFolder -File -ErrorAction SilentlyContinue | Select-Object Name, FullName, Length, LastWriteTime
             if ($downloads) {
                 $downloads | Export-Csv "$OutputPath\downloads.csv" -NoTypeInformation
-                Write-Output "Downloads listing saved to: $OutputPath\downloads.csv"
+                Write-Host "Downloads listing saved to: $OutputPath\downloads.csv"
             }
         } catch {
-            Write-Output "WARNING: Failed to enumerate Downloads - $_"
+            Write-Host "WARNING: Failed to enumerate Downloads - $_"
         }
     } else {
-        Write-Output "(Downloads folder not found)"
+        Write-Host "(Downloads folder not found)"
     }
 
     $copies = @()
@@ -2126,7 +2331,7 @@ function Get-ShadowCopies {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Enumerating Volume Shadow Copies ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Enumerating Volume Shadow Copies ==="
     $items = @()
 
     try {
@@ -2141,14 +2346,14 @@ function Get-ShadowCopies {
             }
         }
     } catch {
-        Write-Output "WARNING: Shadow copy enumeration failed - $_"
+        Write-Host "WARNING: Shadow copy enumeration failed - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\shadow_copies.csv" -NoTypeInformation
-        Write-Output "Shadow copies saved to: $OutputPath\shadow_copies.csv"
+        Write-Host "Shadow copies saved to: $OutputPath\shadow_copies.csv"
     } else {
-        Write-Output "(No shadow copies found - may indicate VSS deletion)"
+        Write-Host "(No shadow copies found - may indicate VSS deletion)"
     }
     return $items
 }
@@ -2163,7 +2368,7 @@ function Get-TimestompDetection {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Timestomped Files ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Timestomped Files ==="
     $items = @()
 
     $scanPaths = @(
@@ -2193,15 +2398,15 @@ function Get-TimestompDetection {
                 }
             }
         } catch {
-            Write-Output "WARNING: Timestomp scan failed on $dir - $_"
+            Write-Host "WARNING: Timestomp scan failed on $dir - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\timestomped_files.csv" -NoTypeInformation
-        Write-Output "Timestomped files saved to: $OutputPath\timestomped_files.csv"
+        Write-Host "Timestomped files saved to: $OutputPath\timestomped_files.csv"
     } else {
-        Write-Output "(No timestamp anomalies detected)"
+        Write-Host "(No timestamp anomalies detected)"
     }
     return $items
 }
@@ -2214,7 +2419,7 @@ function Get-UserAssistHistory {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting UserAssist Program Execution History ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting UserAssist Program Execution History ==="
     $items = @()
 
     # ROT13 decode helper
@@ -2274,15 +2479,15 @@ function Get-UserAssistHistory {
                 }
             }
         } catch {
-            Write-Output "WARNING: UserAssist read failed on $keyPath - $_"
+            Write-Host "WARNING: UserAssist read failed on $keyPath - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\userassist.csv" -NoTypeInformation
-        Write-Output "UserAssist data saved to: $OutputPath\userassist.csv"
+        Write-Host "UserAssist data saved to: $OutputPath\userassist.csv"
     } else {
-        Write-Output "(No UserAssist data found)"
+        Write-Host "(No UserAssist data found)"
     }
     return $items
 }
@@ -2295,7 +2500,7 @@ function Get-HostsFileCheck {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Checking Hosts File for Tampering ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Checking Hosts File for Tampering ==="
     $items = @()
 
     $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
@@ -2334,15 +2539,15 @@ function Get-HostsFileCheck {
                 }
             }
         } catch {
-            Write-Output "WARNING: Hosts file read failed - $_"
+            Write-Host "WARNING: Hosts file read failed - $_"
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\hosts_file.csv" -NoTypeInformation
-        Write-Output "Hosts file analysis saved to: $OutputPath\hosts_file.csv"
+        Write-Host "Hosts file analysis saved to: $OutputPath\hosts_file.csv"
     } else {
-        Write-Output "(Hosts file not found or empty)"
+        Write-Host "(Hosts file not found or empty)"
     }
     return $items
 }
@@ -2355,7 +2560,7 @@ function Get-FirewallRules {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Suspicious Firewall Rules ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Suspicious Firewall Rules ==="
     $items = @()
 
     try {
@@ -2378,14 +2583,14 @@ function Get-FirewallRules {
             } catch { }
         }
     } catch {
-        Write-Output "WARNING: Firewall rule collection failed - $_"
+        Write-Host "WARNING: Firewall rule collection failed - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\firewall_rules.csv" -NoTypeInformation
-        Write-Output "Firewall rules saved to: $OutputPath\firewall_rules.csv"
+        Write-Host "Firewall rules saved to: $OutputPath\firewall_rules.csv"
     } else {
-        Write-Output "(No matching firewall rules found)"
+        Write-Host "(No matching firewall rules found)"
     }
     return $items
 }
@@ -2398,7 +2603,7 @@ function Get-DefenderExclusions {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Checking Windows Defender Exclusions ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Checking Windows Defender Exclusions ==="
     $items = @()
 
     try {
@@ -2444,14 +2649,14 @@ function Get-DefenderExclusions {
             }
         }
     } catch {
-        Write-Output "WARNING: Defender preference check failed (may need admin) - $_"
+        Write-Host "WARNING: Defender preference check failed (may need admin) - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\defender_exclusions.csv" -NoTypeInformation
-        Write-Output "Defender exclusions saved to: $OutputPath\defender_exclusions.csv"
+        Write-Host "Defender exclusions saved to: $OutputPath\defender_exclusions.csv"
     } else {
-        Write-Output "(No Defender exclusions configured)"
+        Write-Host "(No Defender exclusions configured)"
     }
     return $items
 }
@@ -2468,7 +2673,7 @@ function Get-WiFiProfiles {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Saved WiFi Profiles ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Saved WiFi Profiles ==="
     $items = @()
 
     try {
@@ -2499,14 +2704,14 @@ function Get-WiFiProfiles {
             }
         }
     } catch {
-        Write-Output "WARNING: WiFi profile collection failed - $_"
+        Write-Host "WARNING: WiFi profile collection failed - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\wifi_profiles.csv" -NoTypeInformation
-        Write-Output "WiFi profiles saved: $($items.Count) networks to $OutputPath\wifi_profiles.csv"
+        Write-Host "WiFi profiles saved: $($items.Count) networks to $OutputPath\wifi_profiles.csv"
     } else {
-        Write-Output "(No saved WiFi profiles found)"
+        Write-Host "(No saved WiFi profiles found)"
     }
     return $items
 }
@@ -2519,7 +2724,7 @@ function Get-WallpaperInfo {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Desktop Wallpaper Info ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Desktop Wallpaper Info ==="
     $items = @()
 
     try {
@@ -2562,14 +2767,14 @@ function Get-WallpaperInfo {
             }
         }
     } catch {
-        Write-Output "WARNING: Wallpaper collection failed - $_"
+        Write-Host "WARNING: Wallpaper collection failed - $_"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\wallpaper_info.csv" -NoTypeInformation
-        Write-Output "Wallpaper info saved to: $OutputPath\wallpaper_info.csv"
+        Write-Host "Wallpaper info saved to: $OutputPath\wallpaper_info.csv"
     } else {
-        Write-Output "(No wallpaper information found)"
+        Write-Host "(No wallpaper information found)"
     }
     return $items
 }
@@ -2582,7 +2787,7 @@ function Get-BrowserBookmarks {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Bookmarks ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Browser Bookmarks ==="
     $items = @()
 
     $browsers = @{
@@ -2628,16 +2833,16 @@ function Get-BrowserBookmarks {
                     }
                 }
             } catch {
-                Write-Output "WARNING: Failed to parse $($browser.Key) bookmarks - $_"
+                Write-Host "WARNING: Failed to parse $($browser.Key) bookmarks - $_"
             }
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\browser_bookmarks.csv" -NoTypeInformation
-        Write-Output "Browser bookmarks saved: $($items.Count) bookmarks to $OutputPath\browser_bookmarks.csv"
+        Write-Host "Browser bookmarks saved: $($items.Count) bookmarks to $OutputPath\browser_bookmarks.csv"
     } else {
-        Write-Output "(No browser bookmarks found)"
+        Write-Host "(No browser bookmarks found)"
     }
     return $items
 }
@@ -2651,7 +2856,7 @@ function Get-BrowserSearchHistory {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Extracting Browser Search Queries ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Extracting Browser Search Queries ==="
     $items = @()
 
     # Look for copied browser SQLite databases
@@ -2662,7 +2867,7 @@ function Get-BrowserSearchHistory {
     }
 
     if ($dbFiles.Count -eq 0) {
-        Write-Output "(No browser SQLite databases found - run Get-BrowserArtifactsAndDownloads first)"
+        Write-Host "(No browser SQLite databases found - run Get-BrowserArtifactsAndDownloads first)"
         return $items
     }
 
@@ -2715,18 +2920,18 @@ print(json.dumps(results))
                     }
                 }
             } catch {
-                Write-Output "WARNING: Failed to parse $browserName search history - $_"
+                Write-Host "WARNING: Failed to parse $browserName search history - $_"
             }
         }
     } else {
-        Write-Output "WARNING: Python not found - cannot parse SQLite databases for search history"
+        Write-Host "WARNING: Python not found - cannot parse SQLite databases for search history"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\browser_search_history.csv" -NoTypeInformation
-        Write-Output "Search history saved: $($items.Count) queries to $OutputPath\browser_search_history.csv"
+        Write-Host "Search history saved: $($items.Count) queries to $OutputPath\browser_search_history.csv"
     } else {
-        Write-Output "(No browser search queries found)"
+        Write-Host "(No browser search queries found)"
     }
     return $items
 }
@@ -2740,26 +2945,26 @@ function Get-WindowsTimeline {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Windows Activity Timeline ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Windows Activity Timeline ==="
     $items = @()
 
     # Find the largest (most active) ActivitiesCache.db
     $dbFiles = Get-ChildItem "$env:LOCALAPPDATA\ConnectedDevicesPlatform" -Recurse -Filter "ActivitiesCache.db" -ErrorAction SilentlyContinue | Sort-Object Length -Descending
     
     if ($dbFiles.Count -eq 0) {
-        Write-Output "(No Activity History database found)"
+        Write-Host "(No Activity History database found)"
         return $items
     }
 
     $targetDb = $dbFiles[0].FullName
-    Write-Output "Using timeline database: $targetDb ($([math]::Round($dbFiles[0].Length / 1MB, 1)) MB)"
+    Write-Host "Using timeline database: $targetDb ($([math]::Round($dbFiles[0].Length / 1MB, 1)) MB)"
 
     # Copy DB to evidence (it may be locked)
     $copyPath = "$OutputPath\ActivitiesCache.db"
     try {
         Copy-Item $targetDb $copyPath -Force -ErrorAction Stop
     } catch {
-        Write-Output "WARNING: Could not copy timeline DB (may be locked) - reading directly"
+        Write-Host "WARNING: Could not copy timeline DB (may be locked) - reading directly"
         $copyPath = $targetDb
     }
 
@@ -2832,17 +3037,17 @@ print(json.dumps(results))
                 }
             }
         } catch {
-            Write-Output "WARNING: Failed to parse timeline database - $_"
+            Write-Host "WARNING: Failed to parse timeline database - $_"
         }
     } else {
-        Write-Output "WARNING: Python not found - cannot parse Activity History"
+        Write-Host "WARNING: Python not found - cannot parse Activity History"
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\windows_timeline.csv" -NoTypeInformation
-        Write-Output "Timeline saved: $($items.Count) activities to $OutputPath\windows_timeline.csv"
+        Write-Host "Timeline saved: $($items.Count) activities to $OutputPath\windows_timeline.csv"
     } else {
-        Write-Output "(No timeline activities found)"
+        Write-Host "(No timeline activities found)"
     }
     return $items
 }
@@ -2856,7 +3061,7 @@ function Get-GameArtifacts {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Game & Entertainment Artifacts ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Game & Entertainment Artifacts ==="
     $items = @()
 
     # Steam registry
@@ -2970,9 +3175,9 @@ function Get-GameArtifacts {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\game_artifacts.csv" -NoTypeInformation
-        Write-Output "Game artifacts saved: $($items.Count) items to $OutputPath\game_artifacts.csv"
+        Write-Host "Game artifacts saved: $($items.Count) items to $OutputPath\game_artifacts.csv"
     } else {
-        Write-Output "(No game artifacts found)"
+        Write-Host "(No game artifacts found)"
     }
     return $items
 }

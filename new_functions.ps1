@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # FULL EVENT LOG EXPORT
 # ============================================================================
 # Exports ALL available events from Security, System, and Application logs
@@ -19,13 +19,13 @@ function Get-FullEventLogs {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Exporting Full Event Logs ==="
-    Write-Output "This exports ALL events (no date filter) - may take a minute on large logs."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Exporting Full Event Logs ==="
+    Write-Host "This exports ALL events (no date filter) - may take a minute on large logs."
 
     $evtxDir = Join-Path $OutputPath "evtx"
     New-Item -ItemType Directory -Path $evtxDir -Force | Out-Null
 
-    # ── Forensically significant Event IDs per log ──────────────────────────
+    # â”€â”€ Forensically significant Event IDs per log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     $triageIds = @{
         Security    = @(
             4624, 4625, 4634, 4647, 4648, 4672, 4673, 4688, 4689,
@@ -40,7 +40,7 @@ function Get-FullEventLogs {
 
     foreach ($logName in @('Security', 'System', 'Application')) {
 
-        # ── 1. Export raw .evtx (full fidelity for Volatility / Event Viewer) ──
+        # â”€â”€ 1. Export raw .evtx (full fidelity for Volatility / Event Viewer) â”€â”€
         $evtxOut = Join-Path $evtxDir "$logName.evtx"
         try {
             $wevtArgs = @(
@@ -51,12 +51,12 @@ function Get-FullEventLogs {
             )
             & wevtutil.exe @wevtArgs 2>&1 | Out-Null
             $sizeMB = [math]::Round((Get-Item $evtxOut -ErrorAction SilentlyContinue).Length / 1MB, 1)
-            Write-Output "  Exported $logName.evtx ($sizeMB MB) -> $evtxOut"
+            Write-Host "  Exported $logName.evtx ($sizeMB MB) -> $evtxOut"
         } catch {
-            Write-Output "  WARNING: wevtutil export failed for $logName - $_"
+            Write-Host "  WARNING: wevtutil export failed for $logName - $_"
         }
 
-        # ── 2. CSV triage of key event IDs ─────────────────────────────────
+        # â”€â”€ 2. CSV triage of key event IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $csvOut = Join-Path $OutputPath "event_${logName}_full.csv"
         try {
             $ids = $triageIds[$logName]
@@ -67,20 +67,20 @@ function Get-FullEventLogs {
 
             if ($events) {
                 $events | Export-Csv $csvOut -NoTypeInformation
-                Write-Output "  Triage CSV: $($events.Count) key events -> $csvOut"
+                Write-Host "  Triage CSV: $($events.Count) key events -> $csvOut"
             } else {
-                Write-Output "  (No key event IDs found in $logName)"
+                Write-Host "  (No key event IDs found in $logName)"
             }
             $results[$logName] = $events
         } catch {
-            Write-Output "  WARNING: Triage CSV failed for $logName - $_"
+            Write-Host "  WARNING: Triage CSV failed for $logName - $_"
             $results[$logName] = $null
         }
     }
 
-    Write-Output ""
-    Write-Output "  .evtx files saved to: $evtxDir"
-    Write-Output "  Open .evtx in Windows Event Viewer or use Volatility for full analysis."
+    Write-Host ""
+    Write-Host "  .evtx files saved to: $evtxDir"
+    Write-Host "  Open .evtx in Windows Event Viewer or use Volatility for full analysis."
 
     return [pscustomobject]@{
         Security    = $results.Security
@@ -112,13 +112,13 @@ function Invoke-MultiVMCollection {
         [string]$BaseOutputPath
     )
 
-    Write-Output ""
-    Write-Output "=========================================="
-    Write-Output "  MULTI-VM BATCH COLLECTION MODE"
-    Write-Output "=========================================="
-    Write-Output ""
+    Write-Host ""
+    Write-Host "=========================================="
+    Write-Host "  MULTI-VM BATCH COLLECTION MODE"
+    Write-Host "=========================================="
+    Write-Host ""
 
-    # ── Gather VM targets interactively ────────────────────────────────────
+    # â”€â”€ Gather VM targets interactively â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     $vmCount = 0
     while ($vmCount -lt 1 -or $vmCount -gt 10) {
         $input = Read-Host "How many VMs do you want to process? (1-10)"
@@ -127,8 +127,8 @@ function Invoke-MultiVMCollection {
 
     $vmTargets = @()
     for ($i = 1; $i -le $vmCount; $i++) {
-        Write-Output ""
-        Write-Output "--- VM $i of $vmCount ---"
+        Write-Host ""
+        Write-Host "--- VM $i of $vmCount ---"
         $label = ""
         while (-not $label) {
             $label = (Read-Host "  Label for VM $i (e.g. VM1_Live, VM2_Sleeping)").Trim()
@@ -154,20 +154,20 @@ function Invoke-MultiVMCollection {
         }
     }
 
-    Write-Output ""
-    Write-Output "=========================================="
-    Write-Output "  Starting batch collection..."
-    Write-Output "  VMs to process: $($vmTargets | ForEach-Object { $_.Label } | Join-String -Separator ', ')"
-    Write-Output "=========================================="
-    Write-Output ""
+    Write-Host ""
+    Write-Host "=========================================="
+    Write-Host "  Starting batch collection..."
+    Write-Host "  VMs to process: $($vmTargets | ForEach-Object { $_.Label } | Join-String -Separator ', ')"
+    Write-Host "=========================================="
+    Write-Host ""
 
-    # ── Process each VM ─────────────────────────────────────────────────────
+    # â”€â”€ Process each VM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     foreach ($vm in $vmTargets) {
-        Write-Output ""
-        Write-Output "=========================================="
-        Write-Output "  Processing: $($vm.Label)"
-        Write-Output "  Time: $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')"
-        Write-Output "=========================================="
+        Write-Host ""
+        Write-Host "=========================================="
+        Write-Host "  Processing: $($vm.Label)"
+        Write-Host "  Time: $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')"
+        Write-Host "=========================================="
 
         $vm.StartTime = Get-Date
 
@@ -199,22 +199,22 @@ function Invoke-MultiVMCollection {
         $vm.EvidencePath = Join-Path $BaseOutputPath "Evidence\$($vm.Label)"
 
         $duration = [math]::Round(($vm.EndTime - $vm.StartTime).TotalMinutes, 1)
-        Write-Output "  Finished $($vm.Label) in $duration min - Status: $($vm.Status)"
+        Write-Host "  Finished $($vm.Label) in $duration min - Status: $($vm.Status)"
 
         # Pause between VMs so the investigator can switch VM context
         # (e.g. wake sleeping VM, move USB drive, etc.)
         if ($vm -ne $vmTargets[-1]) {
-            Write-Output ""
-            Write-Output "  --- Ready for next VM ---"
+            Write-Host ""
+            Write-Host "  --- Ready for next VM ---"
             Read-Host "  Press ENTER when you have switched to the next VM and are ready to continue"
         }
     }
 
-    # ── Summary table ────────────────────────────────────────────────────────
-    Write-Output ""
-    Write-Output "=========================================="
-    Write-Output "  BATCH COLLECTION SUMMARY"
-    Write-Output "=========================================="
+    # â”€â”€ Summary table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    Write-Host ""
+    Write-Host "=========================================="
+    Write-Host "  BATCH COLLECTION SUMMARY"
+    Write-Host "=========================================="
     $vmTargets | Format-Table Label, Status,
         @{ N='Duration'; E={ "$([math]::Round(($_.EndTime - $_.StartTime).TotalMinutes,1)) min" } },
         @{ N='Evidence'; E={ $_.EvidencePath } } -AutoSize

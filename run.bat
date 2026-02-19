@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM ============================================================
 REM  Forensic Data Collection - Launch Script
 REM  Joseph Hayes | Digital Forensics Assessment
@@ -24,21 +25,24 @@ set /p MODE="Select mode (1 or 2): "
 
 cd /d "%~dp0"
 
-if "%MODE%"=="2" (
+if "!MODE!"=="2" (
     echo.
     echo Starting Multi-VM Batch Mode...
     echo You will be prompted for each VM label and options.
     echo.
     powershell.exe -ExecutionPolicy Bypass -File "main.ps1" -BatchMode
-) else (
-    set /p LABEL="Enter VM label (e.g. VM1_Live): "
-    set /p SKIPRAM="Skip RAM dump? (Y/N): "
-    set "PS_ARGS=-VmLabel %LABEL%"
-    if /i "%SKIPRAM%"=="Y" set "PS_ARGS=%PS_ARGS% -SkipRamDump"
-    echo.
-    echo Starting collection for: %LABEL%
-    powershell.exe -ExecutionPolicy Bypass -File "main.ps1" %PS_ARGS%
+    goto :done
 )
+
+set /p LABEL="Enter VM label (e.g. VM1_Live): "
+set /p SKIPRAM="Skip RAM dump? (Y/N): "
+set "PS_ARGS=-VmLabel !LABEL!"
+if /i "!SKIPRAM!"=="Y" set "PS_ARGS=!PS_ARGS! -SkipRamDump"
+echo.
+echo Starting collection for: !LABEL!
+powershell.exe -ExecutionPolicy Bypass -File "main.ps1" !PS_ARGS!
+
+:done
 
 echo.
 echo =====================================================

@@ -251,14 +251,14 @@ try {
     }
 
     # ========================================================================
-    # MEMORY STRING ANALYSIS (requires RAM dump)
+    # MEMORY ANALYSIS: Volatility 3 + Strings Extraction (requires RAM dump)
     # ========================================================================
     $memoryStrings = $null
     if ($ramResult.Success -and $ramResult.Path) {
-        $memoryStrings = Get-MemoryStrings -OutputPath $evidencePath -RamDumpPath $ramResult.Path
+        $memoryStrings = Get-MemoryStrings -OutputPath $evidencePath -RamDumpPath $ramResult.Path -ScriptRoot $scriptRoot
         Write-Output ""
     } else {
-        Write-Output "Skipping memory string analysis (no RAM dump available)"
+        Write-Output "Skipping memory analysis (no RAM dump available)"
         Write-Output ""
     }
 

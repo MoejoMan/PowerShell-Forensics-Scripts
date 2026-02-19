@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # EMAIL ARTEFACT COLLECTION
 # ============================================================================
 # Collects email artefacts from Outlook, Thunderbird, and Windows Mail.
@@ -27,7 +27,7 @@ function Get-EmailArtefacts {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Email Artefacts ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Email Artefacts ==="
 
     $emailDir = Join-Path $OutputPath "email_artefacts"
     New-Item -ItemType Directory -Path $emailDir -Force | Out-Null
@@ -37,7 +37,7 @@ function Get-EmailArtefacts {
 
     foreach ($prof in $profiles) {
 
-        # ── Outlook PST / OST files ──────────────────────────────────────────
+        # â”€â”€ Outlook PST / OST files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # Common locations across Outlook versions
         $outlookSearchPaths = @(
             (Join-Path $prof.FullName "Documents\Outlook Files"),
@@ -60,31 +60,47 @@ function Get-EmailArtefacts {
                 try {
                     Copy-Item $mf.FullName $dest -Force -ErrorAction Stop
                     $copyStatus = "Copied"
-                    Write-Output "  Copied $($mf.Extension.ToUpper()): $($mf.Name) ($sizeMB MB) for $($prof.Name)"
+                    Write-Host "  Copied $($mf.Extension.ToUpper()): $($mf.Name) ($sizeMB MB) for $($prof.Name)"
                 } catch {
-                    # File locked by Outlook - try shadow copy
-                    Write-Output "  WARNING: $($mf.Name) is locked. Trying shadow copy..."
+                    # File locked by Outlook - try esentutl, then shadow copy
+                    Write-Host "  WARNING: $($mf.Name) is locked. Trying esentutl.exe /y /vss..."
+                    $copied = $false
+
+                    # Try esentutl first (built-in, no external tools)
                     try {
-                        $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue |
-                                   Sort-Object InstallDate -Descending
-                        $copied = $false
-                        foreach ($shadow in $shadows) {
-                            $shadowFile = $shadow.DeviceName + $mf.FullName.Substring(2)  # strip drive letter
-                            if (Test-Path $shadowFile) {
-                                Copy-Item $shadowFile $dest -Force -ErrorAction Stop
-                                $copyStatus = "Copied (VSS)"
-                                $copied = $true
-                                Write-Output "  Copied via shadow copy: $($mf.Name)"
-                                break
-                            }
-                        }
-                        if (-not $copied) {
-                            $copyStatus = "Failed - locked, no VSS"
-                            Write-Output "  FAILED: $($mf.Name) - locked and no shadow copy available"
-                            Write-Output "  Collect manually with FTK Imager while Outlook is closed."
+                        $esentResult = & esentutl.exe /y /vss $mf.FullName /d $dest 2>&1
+                        if ($LASTEXITCODE -eq 0 -and (Test-Path $dest)) {
+                            $copyStatus = "Copied (esentutl)"
+                            $copied = $true
+                            Write-Host "  Copied via esentutl: $($mf.Name)"
                         }
                     } catch {
-                        $copyStatus = "Failed - $_"
+                        Write-Host "  esentutl failed, trying shadow copy..."
+                    }
+
+                    # Fallback to shadow copy
+                    if (-not $copied) {
+                        try {
+                            $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue |
+                                       Sort-Object InstallDate -Descending
+                            foreach ($shadow in $shadows) {
+                                $shadowFile = $shadow.DeviceName + $mf.FullName.Substring(2)  # strip drive letter
+                                if (Test-Path $shadowFile) {
+                                    Copy-Item $shadowFile $dest -Force -ErrorAction Stop
+                                    $copyStatus = "Copied (VSS)"
+                                    $copied = $true
+                                    Write-Host "  Copied via shadow copy: $($mf.Name)"
+                                    break
+                                }
+                            }
+                        } catch {
+                            Write-Host "  Shadow copy also failed - $_"
+                        }
+                    }
+
+                    if (-not $copied) {
+                        $copyStatus = "Failed - locked, all methods exhausted"
+                        Write-Host "  FAILED: $($mf.Name) - all copy methods failed"
                     }
                 }
 
@@ -128,7 +144,7 @@ function Get-EmailArtefacts {
             } catch { }
         }
 
-        # ── Thunderbird ──────────────────────────────────────────────────────
+        # â”€â”€ Thunderbird â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $tbProfileRoot = Join-Path $prof.FullName "AppData\Roaming\Thunderbird\Profiles"
         if (Test-Path $tbProfileRoot) {
             $tbProfiles = Get-ChildItem $tbProfileRoot -Directory -ErrorAction SilentlyContinue
@@ -144,9 +160,9 @@ function Get-EmailArtefacts {
                     if (Test-Path $mailDir2) {
                         try {
                             Copy-Item $mailDir2 $tbDestDir -Recurse -Force -ErrorAction SilentlyContinue
-                            Write-Output "  Copied Thunderbird mail folder for $($prof.Name): $mailDir2"
+                            Write-Host "  Copied Thunderbird mail folder for $($prof.Name): $mailDir2"
                         } catch {
-                            Write-Output "  WARNING: Could not copy Thunderbird folder $mailDir2 - $_"
+                            Write-Host "  WARNING: Could not copy Thunderbird folder $mailDir2 - $_"
                         }
                     }
                 }
@@ -168,14 +184,14 @@ function Get-EmailArtefacts {
             }
         }
 
-        # ── Windows Mail / Mail app ──────────────────────────────────────────
+        # â”€â”€ Windows Mail / Mail app â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $winMailPath = Join-Path $prof.FullName "AppData\Local\Packages\microsoft.windowscommunicationsapps_8wekyb3d8bbwe\LocalState\Indexed"
         if (Test-Path $winMailPath) {
             $winMailDest = Join-Path $emailDir "$($prof.Name)_WindowsMail"
             New-Item -ItemType Directory -Path $winMailDest -Force | Out-Null
             try {
                 Copy-Item $winMailPath $winMailDest -Recurse -Force -ErrorAction SilentlyContinue
-                Write-Output "  Copied Windows Mail data for $($prof.Name)"
+                Write-Host "  Copied Windows Mail data for $($prof.Name)"
                 $items += [pscustomobject]@{
                     User       = $prof.Name
                     Type       = 'WindowsMail'
@@ -186,23 +202,23 @@ function Get-EmailArtefacts {
                     CopyStatus = 'Copied'
                 }
             } catch {
-                Write-Output "  WARNING: Could not copy Windows Mail data - $_"
+                Write-Host "  WARNING: Could not copy Windows Mail data - $_"
             }
         }
     }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv (Join-Path $OutputPath "email_artefacts.csv") -NoTypeInformation
-        Write-Output "  Email artefact summary: $($items.Count) items -> $OutputPath\email_artefacts.csv"
-        Write-Output "  Raw files saved to: $emailDir"
-        Write-Output ""
-        Write-Output "  ANALYSIS TIPS:"
-        Write-Output "    PST/OST : Open in Outlook, or use free Kernel PST Viewer"
-        Write-Output "    MBOX    : Open directly in Thunderbird, or use 'readpst' on Linux"
-        Write-Output "    Look for: Deleted Items, Sent Items, Drafts (unsent extortion msgs)"
-        Write-Output "    Email headers contain originating IP addresses - critical for attribution"
+        Write-Host "  Email artefact summary: $($items.Count) items -> $OutputPath\email_artefacts.csv"
+        Write-Host "  Raw files saved to: $emailDir"
+        Write-Host ""
+        Write-Host "  ANALYSIS TIPS:"
+        Write-Host "    PST/OST : Open in Outlook, or use free Kernel PST Viewer"
+        Write-Host "    MBOX    : Open directly in Thunderbird, or use 'readpst' on Linux"
+        Write-Host "    Look for: Deleted Items, Sent Items, Drafts (unsent extortion msgs)"
+        Write-Host "    Email headers contain originating IP addresses - critical for attribution"
     } else {
-        Write-Output "  (No email artefacts found - no Outlook/Thunderbird/Windows Mail detected)"
+        Write-Host "  (No email artefacts found - no Outlook/Thunderbird/Windows Mail detected)"
     }
 
     return $items
@@ -239,10 +255,10 @@ function Get-PagefileAndHiberfil {
         [string]$ScriptRoot = $PSScriptRoot
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Pagefile & Hibernation File ==="
-    Write-Output "  WARNING: These files are large (several GB) and system-locked."
-    Write-Output "  Collection may take several minutes."
-    Write-Output ""
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Pagefile & Hibernation File ==="
+    Write-Host "  WARNING: These files are large (several GB) and system-locked."
+    Write-Host "  Collection may take several minutes."
+    Write-Host ""
 
     $memFileDir = Join-Path $OutputPath "memory_files"
     New-Item -ItemType Directory -Path $memFileDir -Force | Out-Null
@@ -260,7 +276,7 @@ function Get-PagefileAndHiberfil {
         $dest = Join-Path $memFileDir $target.Name
 
         if (-not (Test-Path $src)) {
-            Write-Output "  $($target.Name): not present on this system"
+            Write-Host "  $($target.Name): not present on this system"
             $results += [pscustomobject]@{
                 File        = $target.Name
                 SizeMB      = 0
@@ -272,34 +288,51 @@ function Get-PagefileAndHiberfil {
         }
 
         $sizeMB = [math]::Round((Get-Item $src -ErrorAction SilentlyContinue).Length / 1MB, 0)
-        Write-Output "  $($target.Name): $sizeMB MB - attempting collection..."
+        Write-Host "  $($target.Name): $sizeMB MB - attempting collection..."
 
         $copied = $false
         $method = 'None'
 
-        # ── Strategy 1: robocopy /B (backup privilege mode) ──────────────────
+        # â”€â”€ Strategy 1: esentutl.exe /y /vss (built-in Windows, most reliable) â”€
+        if (-not $copied) {
+            try {
+                Write-Host "    Trying esentutl.exe /y /vss (built-in Windows)..."
+                $esentResult = & esentutl.exe /y /vss $src /d $dest 2>&1
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $dest)) {
+                    $copied = $true
+                    $method = 'esentutl /y /vss'
+                    Write-Host "    Success via esentutl"
+                } else {
+                    Write-Host "    esentutl returned exit code $LASTEXITCODE"
+                }
+            } catch {
+                Write-Host "    esentutl.exe failed - $_"
+            }
+        }
+
+        # â”€â”€ Strategy 2: robocopy /B (backup privilege mode) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # /B = backup mode, bypasses file locks via SeBackupPrivilege
         # /J = unbuffered I/O (faster for large files)
         # /NP /NFL /NDL = quiet output
         if (-not $copied) {
             try {
-                Write-Output "    Trying robocopy /B (backup mode)..."
+                Write-Host "    Trying robocopy /B (backup mode)..."
                 $roboArgs = "C:\ `"$memFileDir`" $($target.Name) /B /J /NP /NFL /NDL /R:1 /W:1"
                 $roboProc = Start-Process robocopy -ArgumentList $roboArgs -Wait -PassThru -NoNewWindow
                 # robocopy exit codes 0-7 are success/partial success
                 if ($roboProc.ExitCode -le 7 -and (Test-Path $dest)) {
                     $copied = $true
                     $method = 'robocopy /B'
-                    Write-Output "    Success via robocopy /B"
+                    Write-Host "    Success via robocopy /B"
                 }
             } catch {
-                Write-Output "    robocopy /B failed - $_"
+                Write-Host "    robocopy /B failed - $_"
             }
         }
 
-        # ── Strategy 2: Volume Shadow Copy ───────────────────────────────────
+        # â”€â”€ Strategy 3: Volume Shadow Copy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (-not $copied) {
-            Write-Output "    Trying shadow copy..."
+            Write-Host "    Trying shadow copy..."
             try {
                 $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue |
                            Sort-Object InstallDate -Descending
@@ -310,16 +343,16 @@ function Get-PagefileAndHiberfil {
                         Copy-Item $shadowFile $dest -Force -ErrorAction Stop
                         $copied = $true
                         $method = 'Shadow copy'
-                        Write-Output "    Success via shadow copy"
+                        Write-Host "    Success via shadow copy"
                         break
                     }
                 }
             } catch {
-                Write-Output "    Shadow copy failed - $_"
+                Write-Host "    Shadow copy failed - $_"
             }
         }
 
-        # ── Strategy 3: FTK Imager CLI ───────────────────────────────────────
+        # â”€â”€ Strategy 4: FTK Imager CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (-not $copied) {
             $ftkPaths = @(
                 (Join-Path $ScriptRoot "bin\ftkimager.exe"),
@@ -329,40 +362,53 @@ function Get-PagefileAndHiberfil {
             $ftk = $ftkPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
             if ($ftk) {
-                Write-Output "    Trying FTK Imager..."
+                Write-Host "    Trying FTK Imager..."
                 try {
                     $ftkArgs = "`"$src`" `"$dest`""
                     $ftkProc = Start-Process $ftk -ArgumentList $ftkArgs -Wait -PassThru -NoNewWindow
                     if ($ftkProc.ExitCode -eq 0 -and (Test-Path $dest)) {
                         $copied = $true
                         $method = 'FTK Imager'
-                        Write-Output "    Success via FTK Imager"
+                        Write-Host "    Success via FTK Imager"
                     }
                 } catch {
-                    Write-Output "    FTK Imager failed - $_"
+                    Write-Host "    FTK Imager failed - $_"
                 }
             }
         }
 
-        # ── Result ───────────────────────────────────────────────────────────
+        # â”€â”€ Result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (-not $copied) {
+            # Last resort: try esentutl without /vss flag (sometimes works for non-ESE files)
+            try {
+                Write-Host "    Last resort: esentutl.exe /y (no VSS)..."
+                $esentResult = & esentutl.exe /y $src /d $dest 2>&1
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $dest)) {
+                    $copied = $true
+                    $method = 'esentutl /y'
+                    Write-Host "    Success via esentutl (no VSS)"
+                }
+            } catch { }
+        }
+
         if ($copied) {
             $copiedSizeMB = [math]::Round((Get-Item $dest).Length / 1MB, 0)
-            Write-Output "  $($target.Name): collected ($copiedSizeMB MB) via $method -> $dest"
+            Write-Host "  $($target.Name): collected ($copiedSizeMB MB) via $method -> $dest"
 
             if ($target.Name -eq 'hiberfil.sys') {
-                Write-Output "  HIBERFIL TIP: This is a full RAM snapshot."
-                Write-Output "    Convert: volatility -f hiberfil.sys imagecopy -O hiberfil.raw"
-                Write-Output "    Then:    vol.py -f hiberfil.raw windows.pslist / windows.netscan"
+                Write-Host "  HIBERFIL TIP: This is a full RAM snapshot."
+                Write-Host "    Convert: volatility -f hiberfil.sys imagecopy -O hiberfil.raw"
+                Write-Host "    Then:    vol.py -f hiberfil.raw windows.pslist / windows.netscan"
             }
             if ($target.Name -eq 'pagefile.sys') {
-                Write-Output "  PAGEFILE TIP: Use 'strings' to extract readable content:"
-                Write-Output "    strings.exe -n 8 pagefile.sys | findstr /i '@' > emails_from_page.txt"
-                Write-Output "    strings.exe -n 8 pagefile.sys | findstr /i 'password' > passwords.txt"
+                Write-Host "  PAGEFILE TIP: Use 'strings' to extract readable content:"
+                Write-Host "    strings.exe -n 8 pagefile.sys | findstr /i '@' > emails_from_page.txt"
+                Write-Host "    strings.exe -n 8 pagefile.sys | findstr /i 'password' > passwords.txt"
             }
         } else {
-            Write-Output "  $($target.Name): FAILED - all strategies exhausted"
-            Write-Output "  Manual collection required: use FTK Imager GUI to image the C: drive,"
-            Write-Output "  then extract $($target.Name) from the image."
+            Write-Host "  $($target.Name): FAILED - all strategies exhausted"
+            Write-Host "  Manual collection required: use FTK Imager GUI to image the C: drive,"
+            Write-Host "  then extract $($target.Name) from the image."
         }
 
         $results += [pscustomobject]@{
@@ -372,12 +418,12 @@ function Get-PagefileAndHiberfil {
             Description = $target.Description
             Method      = $method
         }
-        Write-Output ""
+        Write-Host ""
     }
 
     $results | Export-Csv (Join-Path $OutputPath "memory_files_status.csv") -NoTypeInformation
-    Write-Output "  Status summary saved to: $OutputPath\memory_files_status.csv"
-    Write-Output "  Files saved to: $memFileDir"
+    Write-Host "  Status summary saved to: $OutputPath\memory_files_status.csv"
+    Write-Host "  Files saved to: $memFileDir"
 
     return $results
 }

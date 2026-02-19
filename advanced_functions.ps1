@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # REGISTRY HIVE COLLECTION
 # ============================================================================
 # Exports live registry hives using `reg save`. These are binary .hiv files
@@ -20,14 +20,14 @@ function Get-RegistryHives {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Registry Hives ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Registry Hives ==="
 
     $hivesDir = Join-Path $OutputPath "registry_hives"
     New-Item -ItemType Directory -Path $hivesDir -Force | Out-Null
 
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Output "WARNING: Not running as administrator. SAM and SECURITY hives will likely fail."
+        Write-Host "WARNING: Not running as administrator. SAM and SECURITY hives will likely fail."
     }
 
     # System hives (require admin)
@@ -46,12 +46,12 @@ function Get-RegistryHives {
             $output = & reg save $hive.Value $dest /y 2>&1
             if (Test-Path $dest) {
                 $sizeMB = [math]::Round((Get-Item $dest).Length / 1MB, 2)
-                Write-Output "  Saved $($hive.Key).hiv ($sizeMB MB)"
+                Write-Host "  Saved $($hive.Key).hiv ($sizeMB MB)"
             } else {
-                Write-Output "  WARNING: $($hive.Key) - reg save reported: $output"
+                Write-Host "  WARNING: $($hive.Key) - reg save reported: $output"
             }
         } catch {
-            Write-Output "  ERROR saving $($hive.Key): $_"
+            Write-Host "  ERROR saving $($hive.Key): $_"
         }
     }
 
@@ -65,7 +65,7 @@ function Get-RegistryHives {
             try {
                 Copy-Item $ntuserSrc $ntuserDst -Force -ErrorAction Stop
                 $sizeMB = [math]::Round((Get-Item $ntuserDst).Length / 1MB, 2)
-                Write-Output "  Copied NTUSER.DAT for $($prof.Name) ($sizeMB MB)"
+                Write-Host "  Copied NTUSER.DAT for $($prof.Name) ($sizeMB MB)"
             } catch {
                 # File is locked - use Volume Shadow Copy trick or reg save
                 try {
@@ -75,12 +75,12 @@ function Get-RegistryHives {
                     & reg save $regPath $ntuserDst /y 2>&1 | Out-Null
                     & reg unload $regPath 2>&1 | Out-Null
                     if (Test-Path $ntuserDst) {
-                        Write-Output "  Saved NTUSER.DAT for $($prof.Name) via reg load/save"
+                        Write-Host "  Saved NTUSER.DAT for $($prof.Name) via reg load/save"
                     } else {
-                        Write-Output "  WARNING: Could not export NTUSER.DAT for $($prof.Name) (file locked)"
+                        Write-Host "  WARNING: Could not export NTUSER.DAT for $($prof.Name) (file locked)"
                     }
                 } catch {
-                    Write-Output "  WARNING: NTUSER.DAT locked for $($prof.Name) - collect via VSS or offline"
+                    Write-Host "  WARNING: NTUSER.DAT locked for $($prof.Name) - collect via VSS or offline"
                 }
             }
         }
@@ -91,16 +91,16 @@ function Get-RegistryHives {
         if (Test-Path $usrClassSrc) {
             try {
                 Copy-Item $usrClassSrc $usrClassDst -Force -ErrorAction Stop
-                Write-Output "  Copied UsrClass.dat for $($prof.Name)"
+                Write-Host "  Copied UsrClass.dat for $($prof.Name)"
             } catch {
-                Write-Output "  WARNING: UsrClass.dat locked for $($prof.Name)"
+                Write-Host "  WARNING: UsrClass.dat locked for $($prof.Name)"
             }
         }
     }
 
-    Write-Output "  Registry hives saved to: $hivesDir"
-    Write-Output "  TIP: Load .hiv files in Registry Explorer (Eric Zimmermann) for full analysis."
-    Write-Output "  TIP: Run RegRipper against NTUSER.DAT for automated artefact extraction."
+    Write-Host "  Registry hives saved to: $hivesDir"
+    Write-Host "  TIP: Load .hiv files in Registry Explorer (Eric Zimmermann) for full analysis."
+    Write-Host "  TIP: Run RegRipper against NTUSER.DAT for automated artefact extraction."
 
     return $hivesDir
 }
@@ -120,37 +120,56 @@ function Get-SRUMDatabase {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting SRUM Database ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting SRUM Database ==="
 
     $srumSrc = "C:\Windows\System32\sru\SRUDB.dat"
     $srumDst = Join-Path $OutputPath "SRUDB.dat"
 
     if (-not (Test-Path $srumSrc)) {
-        Write-Output "  (SRUM database not found at $srumSrc)"
+        Write-Host "  (SRUM database not found at $srumSrc)"
         return $null
     }
 
     try {
         Copy-Item $srumSrc $srumDst -Force -ErrorAction Stop
         $sizeMB = [math]::Round((Get-Item $srumDst).Length / 1MB, 2)
-        Write-Output "  SRUM database copied ($sizeMB MB) -> $srumDst"
-        Write-Output "  Parse with: SrumECmd.exe -f `"$srumDst`" --csv output_folder"
+        Write-Host "  SRUM database copied ($sizeMB MB) -> $srumDst"
+        Write-Host "  Parse with: SrumECmd.exe -f `"$srumDst`" --csv output_folder"
     } catch {
-        # File is locked by svchost - use VSS or raw copy fallback
-        Write-Output "  WARNING: SRUDB.dat is locked. Attempting shadow copy fallback..."
+        # File is locked by svchost - try esentutl, then VSS, then shadow copy
+        Write-Host "  WARNING: SRUDB.dat is locked. Trying esentutl.exe /y /vss..."
+        $srumCopied = $false
         try {
-            $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue
-            if ($shadows) {
-                $shadow = $shadows | Sort-Object InstallDate -Descending | Select-Object -First 1
-                $shadowPath = $shadow.DeviceName + "\Windows\System32\sru\SRUDB.dat"
-                Copy-Item $shadowPath $srumDst -Force -ErrorAction Stop
-                Write-Output "  SRUM database copied from shadow copy -> $srumDst"
-            } else {
-                Write-Output "  ERROR: No shadow copies available. SRUM must be collected offline."
+            $esentResult = & esentutl.exe /y /vss $srumSrc /d $srumDst 2>&1
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $srumDst)) {
+                $sizeMB = [math]::Round((Get-Item $srumDst).Length / 1MB, 2)
+                Write-Host "  SRUM database copied via esentutl ($sizeMB MB) -> $srumDst"
+                $srumCopied = $true
             }
         } catch {
-            Write-Output "  ERROR: Could not copy SRUDB.dat - $_"
-            Write-Output "  Collect manually using FTK Imager or offline analysis."
+            Write-Host "  esentutl failed - trying shadow copy..."
+        }
+
+        if (-not $srumCopied) {
+            try {
+                $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue
+                if ($shadows) {
+                    $shadow = $shadows | Sort-Object InstallDate -Descending | Select-Object -First 1
+                    $shadowPath = $shadow.DeviceName + "\Windows\System32\sru\SRUDB.dat"
+                    Copy-Item $shadowPath $srumDst -Force -ErrorAction Stop
+                    Write-Host "  SRUM database copied from shadow copy -> $srumDst"
+                    $srumCopied = $true
+                } else {
+                    Write-Host "  No shadow copies available."
+                }
+            } catch {
+                Write-Host "  Shadow copy failed - $_"
+            }
+        }
+
+        if (-not $srumCopied) {
+            Write-Host "  ERROR: All SRUDB.dat copy methods failed."
+            Write-Host "  Will attempt collection from offline image analysis."
         }
     }
 
@@ -174,39 +193,58 @@ function Get-AmcacheAndShimcache {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Amcache & ShimCache ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Amcache & ShimCache ==="
+
+    $amcacheDir = Join-Path $OutputPath "amcache"
+    New-Item -ItemType Directory -Path $amcacheDir -Force | Out-Null
 
     $amcacheSrc = "C:\Windows\AppCompat\Programs\Amcache.hve"
-    $amcacheDst = Join-Path $OutputPath "Amcache.hve"
+    $amcacheDst = Join-Path $amcacheDir "Amcache.hve"
 
     if (Test-Path $amcacheSrc) {
+        $amcacheCopied = $false
         try {
             Copy-Item $amcacheSrc $amcacheDst -Force -ErrorAction Stop
             $sizeMB = [math]::Round((Get-Item $amcacheDst).Length / 1MB, 2)
-            Write-Output "  Amcache.hve copied ($sizeMB MB) -> $amcacheDst"
-            Write-Output "  Parse with: AmcacheParser.exe -f `"$amcacheDst`" --csv output_folder"
+            Write-Host "  Amcache.hve copied ($sizeMB MB) -> $amcacheDst"
+            Write-Host "  Parse with: AmcacheParser.exe -f `"$amcacheDst`" --csv output_folder"
+            $amcacheCopied = $true
         } catch {
-            Write-Output "  WARNING: Amcache.hve locked - attempting shadow copy..."
+            Write-Host "  WARNING: Amcache.hve locked - trying esentutl.exe /y /vss..."
             try {
-                $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue
-                if ($shadows) {
-                    $shadow = $shadows | Sort-Object InstallDate -Descending | Select-Object -First 1
-                    $shadowPath = $shadow.DeviceName + "\Windows\AppCompat\Programs\Amcache.hve"
-                    Copy-Item $shadowPath $amcacheDst -Force -ErrorAction Stop
-                    Write-Output "  Amcache.hve copied from shadow copy"
-                } else {
-                    Write-Output "  ERROR: Amcache.hve locked and no shadow copies available"
+                $esentResult = & esentutl.exe /y /vss $amcacheSrc /d $amcacheDst 2>&1
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $amcacheDst)) {
+                    $sizeMB = [math]::Round((Get-Item $amcacheDst).Length / 1MB, 2)
+                    Write-Host "  Amcache.hve copied via esentutl ($sizeMB MB) -> $amcacheDst"
+                    $amcacheCopied = $true
                 }
             } catch {
-                Write-Output "  ERROR: Could not copy Amcache.hve - $_"
+                Write-Host "  esentutl failed - trying shadow copy..."
+            }
+
+            if (-not $amcacheCopied) {
+                try {
+                    $shadows = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue
+                    if ($shadows) {
+                        $shadow = $shadows | Sort-Object InstallDate -Descending | Select-Object -First 1
+                        $shadowPath = $shadow.DeviceName + "\Windows\AppCompat\Programs\Amcache.hve"
+                        Copy-Item $shadowPath $amcacheDst -Force -ErrorAction Stop
+                        Write-Host "  Amcache.hve copied from shadow copy"
+                        $amcacheCopied = $true
+                    } else {
+                        Write-Host "  No shadow copies available"
+                    }
+                } catch {
+                    Write-Host "  ERROR: All Amcache.hve copy methods failed - $_"
+                }
             }
         }
     } else {
-        Write-Output "  (Amcache.hve not found - may be older Windows version)"
+        Write-Host "  (Amcache.hve not found - may be older Windows version)"
     }
 
     # ShimCache lives in SYSTEM hive - export just that key as a readable dump
-    Write-Output "  Extracting ShimCache entries from registry..."
+    Write-Host "  Extracting ShimCache entries from registry..."
     $shimItems = @()
     try {
         $shimPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\AppCompatCache'
@@ -217,12 +255,12 @@ function Get-AmcacheAndShimcache {
             if ($shimData.AppCompatCache) {
                 $sizeBytes = $shimData.AppCompatCache.Length
                 $shimItems += [pscustomobject]@{ DataSize = $sizeBytes; Source = 'AppCompatCache'; Note = 'Requires offline parsing' }
-                Write-Output "  ShimCache raw data found ($sizeBytes bytes) - saved in SYSTEM.hiv"
-                Write-Output "  Parse with: AppCompatCacheParser.exe -f SYSTEM.hiv --csv output_folder"
+                Write-Host "  ShimCache raw data found ($sizeBytes bytes) - saved in SYSTEM.hiv"
+                Write-Host "  Parse with: AppCompatCacheParser.exe -f SYSTEM.hiv --csv output_folder"
             }
         }
     } catch {
-        Write-Output "  WARNING: ShimCache read failed - $_"
+        Write-Host "  WARNING: ShimCache read failed - $_"
     }
     # Export ShimCache metadata if any entries found
     if ($shimItems.Count -gt 0) {
@@ -247,7 +285,7 @@ function Get-LnkAndJumpLists {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting LNK Files & Jump Lists ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting LNK Files & Jump Lists ==="
 
     $lnkDir = Join-Path $OutputPath "lnk_jumplists"
     New-Item -ItemType Directory -Path $lnkDir -Force | Out-Null
@@ -281,7 +319,7 @@ function Get-LnkAndJumpLists {
                         }
                     } catch { }
                 }
-                Write-Output "  Copied $($lnkFiles.Count) LNK files for $($prof.Name)"
+                Write-Host "  Copied $($lnkFiles.Count) LNK files for $($prof.Name)"
             }
         }
 
@@ -296,7 +334,7 @@ function Get-LnkAndJumpLists {
                     $jlFiles | ForEach-Object {
                         try { Copy-Item $_.FullName $destDir -Force -ErrorAction SilentlyContinue } catch { }
                     }
-                    Write-Output "  Copied $($jlFiles.Count) $jlFolder files for $($prof.Name)"
+                    Write-Host "  Copied $($jlFiles.Count) $jlFolder files for $($prof.Name)"
                 }
             }
         }
@@ -304,12 +342,12 @@ function Get-LnkAndJumpLists {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv (Join-Path $OutputPath "lnk_metadata.csv") -NoTypeInformation
-        Write-Output "  LNK metadata CSV: $($items.Count) entries -> $OutputPath\lnk_metadata.csv"
+        Write-Host "  LNK metadata CSV: $($items.Count) entries -> $OutputPath\lnk_metadata.csv"
     }
 
-    Write-Output "  Raw LNK/JumpList files saved to: $lnkDir"
-    Write-Output "  Parse with: LECmd.exe -d `"$lnkDir`" --csv output_folder"
-    Write-Output "  Parse with: JLECmd.exe -d `"$lnkDir`" --csv output_folder"
+    Write-Host "  Raw LNK/JumpList files saved to: $lnkDir"
+    Write-Host "  Parse with: LECmd.exe -d `"$lnkDir`" --csv output_folder"
+    Write-Host "  Parse with: JLECmd.exe -d `"$lnkDir`" --csv output_folder"
 
     return $items
 }
@@ -329,7 +367,7 @@ function Get-ThumbnailCache {
         [string]$OutputPath
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Thumbnail Cache ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Thumbnail Cache ==="
 
     $thumbDir = Join-Path $OutputPath "thumbnail_cache"
     New-Item -ItemType Directory -Path $thumbDir -Force | Out-Null
@@ -347,20 +385,20 @@ function Get-ThumbnailCache {
                     Copy-Item $f.FullName $dest -Force -ErrorAction Stop
                     $copied++
                 } catch {
-                    Write-Output "  WARNING: Could not copy $($f.Name) for $($prof.Name) - $_"
+                    Write-Host "  WARNING: Could not copy $($f.Name) for $($prof.Name) - $_"
                 }
             }
             if ($thumbFiles) {
-                Write-Output "  Copied $($thumbFiles.Count) thumbcache files for $($prof.Name)"
+                Write-Host "  Copied $($thumbFiles.Count) thumbcache files for $($prof.Name)"
             }
         }
     }
 
     if ($copied -gt 0) {
-        Write-Output "  $copied thumbcache files saved to: $thumbDir"
-        Write-Output "  Parse with: Thumbcache Viewer - https://thumbcacheviewer.github.io"
+        Write-Host "  $copied thumbcache files saved to: $thumbDir"
+        Write-Host "  Parse with: Thumbcache Viewer - https://thumbcacheviewer.github.io"
     } else {
-        Write-Output "  (No thumbnail cache files found)"
+        Write-Host "  (No thumbnail cache files found)"
     }
 
     return $thumbDir
@@ -388,28 +426,31 @@ function Get-MFTAndUsnJournal {
         [string]$ScriptRoot = $PSScriptRoot
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Collecting MFT & USN Journal ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting MFT & USN Journal ==="
 
     $mftDir = Join-Path $OutputPath "mft_usn"
     New-Item -ItemType Directory -Path $mftDir -Force | Out-Null
 
-    # ── 1. USN Journal via fsutil (no extra tools needed) ───────────────────
-    Write-Output "  Exporting USN Journal via fsutil..."
+    # â”€â”€ 1. USN Journal via fsutil (no extra tools needed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    Write-Host "  Exporting USN Journal via fsutil..."
     try {
         $usnOut = Join-Path $mftDir "usn_journal.csv"
         $usnRaw = & fsutil usn readjournal C: csv 2>&1
         if ($usnRaw -and $LASTEXITCODE -eq 0) {
             $usnRaw | Out-File $usnOut -Encoding UTF8
-            Write-Output "  USN Journal exported -> $usnOut"
+            Write-Host "  USN Journal exported -> $usnOut"
         } else {
-            Write-Output "  WARNING: fsutil usn failed - $usnRaw"
+            Write-Host "  WARNING: fsutil usn failed - $usnRaw"
         }
     } catch {
-        Write-Output "  WARNING: USN Journal export failed - $_"
+        Write-Host "  WARNING: USN Journal export failed - $_"
     }
 
-    # ── 2. $MFT via RawCopy or MFTECmd if available in bin\ ─────────────────
+    # â”€â”€ 2. $MFT via RawCopy/Rawccopy or MFTECmd if available in bin\ â”€â”€â”€â”€â”€â”€â”€â”€
     $rawCopyPaths = @(
+        (Join-Path $ScriptRoot "bin\rawccopy.exe"),
+        (Join-Path $ScriptRoot "bin\rawccopy\rawccopy.exe"),
+        (Join-Path $ScriptRoot "bin\rawccopy64.exe"),
         (Join-Path $ScriptRoot "bin\RawCopy\RawCopy.exe"),
         (Join-Path $ScriptRoot "bin\RawCopy64.exe"),
         (Join-Path $ScriptRoot "bin\RawCopy.exe")
@@ -422,57 +463,57 @@ function Get-MFTAndUsnJournal {
     )
     $mftEcmd = $mftEcmdPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
+    $mftExtracted = $false
+
     if ($rawCopy) {
-        Write-Output "  RawCopy found - extracting `$MFT..."
+        Write-Host "  RawCopy/Rawccopy found - extracting `$MFT..."
         try {
             $mftDest = Join-Path $mftDir "MFT"
-            & $rawCopy /FileNamePath:C:\`$MFT /OutputPath:$mftDir 2>&1 | ForEach-Object { Write-Output "  $_" }
+            & $rawCopy /FileNamePath:C:\`$MFT /OutputPath:$mftDir 2>&1 | ForEach-Object { Write-Host "  $_" }
             if (Test-Path $mftDest) {
                 $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
-                Write-Output "  `$MFT extracted ($sizeMB MB) -> $mftDest"
+                Write-Host "  `$MFT extracted ($sizeMB MB) -> $mftDest"
+                $mftExtracted = $true
             }
         } catch {
-            Write-Output "  ERROR: RawCopy failed - $_"
+            Write-Host "  ERROR: RawCopy failed - $_"
         }
-    } elseif ($mftEcmd) {
-        Write-Output "  MFTECmd found - parsing `$MFT directly..."
+    }
+
+    if (-not $mftExtracted -and $mftEcmd) {
+        Write-Host "  MFTECmd found - parsing `$MFT directly..."
         try {
             $mftCsvOut = Join-Path $mftDir "mft_parsed"
             New-Item -ItemType Directory -Path $mftCsvOut -Force | Out-Null
-            & $mftEcmd -f C:\`$MFT --csv $mftCsvOut 2>&1 | ForEach-Object { Write-Output "  $_" }
-            Write-Output "  `$MFT parsed -> $mftCsvOut"
+            & $mftEcmd -f C:\`$MFT --csv $mftCsvOut 2>&1 | ForEach-Object { Write-Host "  $_" }
+            Write-Host "  `$MFT parsed -> $mftCsvOut"
+            $mftExtracted = $true
         } catch {
-            Write-Output "  ERROR: MFTECmd failed - $_"
+            Write-Host "  ERROR: MFTECmd failed - $_"
         }
-    } else {
-        Write-Output "  NOTE: Neither RawCopy nor MFTECmd found in bin\ folder."
-        Write-Output "  To collect `$MFT, add one of these to your USB:"
-        Write-Output "    RawCopy64.exe: https://github.com/jschicht/RawCopy"
-        Write-Output "    MFTECmd.exe  : https://ericzimmermann.com/get-zimtools (free)"
-        Write-Output "  Then place in: $ScriptRoot\bin\"
-        Write-Output ""
-        Write-Output "  Alternatively, FTK Imager can export `$MFT from a live or offline volume."
+    }
 
-        # Write the note to evidence folder
-        @"
-MFT COLLECTION NOTE
-===================
-The $MFT could not be automatically extracted because neither RawCopy
-nor MFTECmd was found in the bin\ folder.
+    # â”€â”€ Fallback: esentutl.exe /y /vss (built-in Windows, no external tools) â”€â”€
+    if (-not $mftExtracted) {
+        Write-Host "  No external tools found. Trying esentutl.exe /y /vss (built-in Windows)..."
+        try {
+            $mftDest = Join-Path $mftDir "`$MFT"
+            $esentResult = & esentutl.exe /y /vss "C:\`$MFT" /d $mftDest 2>&1
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $mftDest)) {
+                $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
+                Write-Host "  `$MFT extracted via esentutl ($sizeMB MB) -> $mftDest"
+                $mftExtracted = $true
+            } else {
+                Write-Host "  esentutl.exe failed: $esentResult"
+            }
+        } catch {
+            Write-Host "  esentutl.exe error: $_"
+        }
+    }
 
-To collect MFT manually:
-  Option 1 - FTK Imager (GUI):
-    File > Add Evidence Item > Logical Drive > C:
-    Expand tree > [root] > right-click `$MFT > Export Files
-
-  Option 2 - Add RawCopy64.exe to bin\ and rerun:
-    Download: https://github.com/jschicht/RawCopy/releases
-    Usage:    RawCopy64.exe /FileNamePath:C:\`$MFT /OutputPath:.\evidence\
-
-  Option 3 - Add MFTECmd.exe to bin\ and rerun:
-    Download: https://ericzimmermann.com/get-zimtools
-    Usage:    MFTECmd.exe -f C:\`$MFT --csv .\mft_output\
-"@ | Out-File (Join-Path $mftDir "MFT_COLLECTION_NOTE.txt") -Encoding UTF8
+    if (-not $mftExtracted) {
+        Write-Host "  WARNING: All `$MFT extraction methods failed."
+        Write-Host "  The raw `$MFT file is locked by NTFS. Last resort: FTK Imager GUI."
     }
 
     return $mftDir
@@ -505,7 +546,7 @@ function Get-FTKImage {
         [string]$Description = "Forensic disk image"
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === FTK Imager Disk Imaging ==="
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === FTK Imager Disk Imaging ==="
 
     # Find ftkimager.exe - check script root and known subfolder
     $ftkPaths = @(
@@ -517,16 +558,16 @@ function Get-FTKImage {
     $ftk = $ftkPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
     if (-not $ftk) {
-        Write-Output "  ERROR: ftkimager.exe not found. Checked:"
-        $ftkPaths | ForEach-Object { Write-Output "    $_" }
-        Write-Output "  Copy ftkimager.exe (and its DLLs) into $ScriptRoot\bin\"
+        Write-Host "  ERROR: ftkimager.exe not found. Checked:"
+        $ftkPaths | ForEach-Object { Write-Host "    $_" }
+        Write-Host "  Copy ftkimager.exe (and its DLLs) into $ScriptRoot\bin\"
         return $null
     }
 
-    Write-Output "  Using FTK Imager: $ftk"
-    Write-Output "  Source          : $SourcePath"
-    Write-Output "  Format          : $Format"
-    Write-Output "  This may take a LONG time for full disk images (plan for 1-3+ hours)."
+    Write-Host "  Using FTK Imager: $ftk"
+    Write-Host "  Source          : $SourcePath"
+    Write-Host "  Format          : $Format"
+    Write-Host "  This may take a LONG time for full disk images (plan for 1-3+ hours)."
 
     $imageDir = Join-Path $OutputPath "disk_images"
     New-Item -ItemType Directory -Path $imageDir -Force | Out-Null
@@ -534,7 +575,7 @@ function Get-FTKImage {
     $safeLabel   = ($VmLabel -replace '[^a-zA-Z0-9_-]', '_')
     $imagePrefix = Join-Path $imageDir $safeLabel
     $hashFile    = Join-Path $imageDir "${safeLabel}_hashes.txt"
-    Write-Output "  Hash log will be saved to: $hashFile"
+    Write-Host "  Hash log will be saved to: $hashFile"
 
     # Build argument list
     # FTK Imager CLI syntax: ftkimager <source> <dest_prefix> [options]
@@ -553,8 +594,8 @@ function Get-FTKImage {
     $ftkArgs += "--verify"
 
     try {
-        Write-Output "  Starting FTK Imager... (output below)"
-        Write-Output ""
+        Write-Host "  Starting FTK Imager... (output below)"
+        Write-Host ""
         $proc = Start-Process -FilePath $ftk -ArgumentList $ftkArgs `
                               -NoNewWindow -Wait -PassThru `
                               -RedirectStandardOutput "$imageDir\${safeLabel}_ftk_stdout.txt" `
@@ -562,25 +603,25 @@ function Get-FTKImage {
 
         # Show output
         if (Test-Path "$imageDir\${safeLabel}_ftk_stdout.txt") {
-            Get-Content "$imageDir\${safeLabel}_ftk_stdout.txt" | ForEach-Object { Write-Output "  FTK: $_" }
+            Get-Content "$imageDir\${safeLabel}_ftk_stdout.txt" | ForEach-Object { Write-Host "  FTK: $_" }
         }
 
         if ($proc.ExitCode -eq 0) {
             $images = Get-ChildItem $imageDir -Filter "$safeLabel*" -File -ErrorAction SilentlyContinue |
                       Where-Object { $_.Extension -match '\.(E01|001|raw|img)$' }
-            Write-Output ""
-            Write-Output "  Imaging complete. Files created:"
+            Write-Host ""
+            Write-Host "  Imaging complete. Files created:"
             $images | ForEach-Object {
                 $sizeMB = [math]::Round($_.Length / 1MB, 1)
-                Write-Output "    $($_.Name) ($sizeMB MB)"
+                Write-Host "    $($_.Name) ($sizeMB MB)"
             }
-            Write-Output "  Hash verification: see FTK stdout log above (look for MD5/SHA1 match)"
+            Write-Host "  Hash verification: see FTK stdout log above (look for MD5/SHA1 match)"
         } else {
-            Write-Output "  WARNING: FTK Imager exited with code $($proc.ExitCode)"
-            Write-Output "  Check: $imageDir\${safeLabel}_ftk_stderr.txt"
+            Write-Host "  WARNING: FTK Imager exited with code $($proc.ExitCode)"
+            Write-Host "  Check: $imageDir\${safeLabel}_ftk_stderr.txt"
         }
     } catch {
-        Write-Output "  ERROR running FTK Imager: $_"
+        Write-Host "  ERROR running FTK Imager: $_"
     }
 
     return $imageDir
@@ -610,67 +651,67 @@ function Get-SleepingVMArtefacts {
         [string]$VmdkPath     = ""             # if you already know the VMDK path, set this
     )
 
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] === Sleeping VM Artefact Collection ==="
-    Write-Output "  NOTE: Sleeping/offline VMs must be imaged from the HOST machine."
-    Write-Output ""
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Sleeping VM Artefact Collection ==="
+    Write-Host "  NOTE: Sleeping/offline VMs must be imaged from the HOST machine."
+    Write-Host ""
 
     $sleepDir = Join-Path $OutputPath "sleeping_vm_$VmLabel"
     New-Item -ItemType Directory -Path $sleepDir -Force | Out-Null
 
-    # ── Find VMDK / VHD files ────────────────────────────────────────────────
+    # â”€â”€ Find VMDK / VHD files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (-not $VmdkPath) {
-        Write-Output "  Searching for VMDK/VHD files under $VmSearchPath ..."
+        Write-Host "  Searching for VMDK/VHD files under $VmSearchPath ..."
         $vmFiles = Get-ChildItem -Path $VmSearchPath -Recurse -Depth 6 -ErrorAction SilentlyContinue |
                    Where-Object { $_.Extension -match '\.(vmdk|vhd|vhdx|ova|ovf)$' } |
                    Sort-Object Length -Descending
 
         if ($vmFiles) {
-            Write-Output "  Found VM disk files:"
+            Write-Host "  Found VM disk files:"
             $vmFiles | ForEach-Object {
                 $sizeMB = [math]::Round($_.Length / 1MB, 1)
-                Write-Output "    $($_.FullName) ($sizeMB MB)"
+                Write-Host "    $($_.FullName) ($sizeMB MB)"
             }
             # Use largest VMDK (most likely the main disk, not a snapshot delta)
             $VmdkPath = ($vmFiles | Select-Object -First 1).FullName
-            Write-Output ""
-            Write-Output "  Automatically selected: $VmdkPath"
-            Write-Output "  If this is wrong, re-run with -VmdkPath 'correct\path.vmdk'"
+            Write-Host ""
+            Write-Host "  Automatically selected: $VmdkPath"
+            Write-Host "  If this is wrong, re-run with -VmdkPath 'correct\path.vmdk'"
         } else {
-            Write-Output "  WARNING: No VMDK/VHD files found under $VmSearchPath"
-            Write-Output "  Set -VmSearchPath to the folder containing your VMs."
+            Write-Host "  WARNING: No VMDK/VHD files found under $VmSearchPath"
+            Write-Host "  Set -VmSearchPath to the folder containing your VMs."
         }
     }
 
-    # ── Look for memory snapshot (.vmem / .vmsn) ────────────────────────────
+    # â”€â”€ Look for memory snapshot (.vmem / .vmsn) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ($VmdkPath) {
         $vmDir = Split-Path $VmdkPath -Parent
         $memFiles = Get-ChildItem $vmDir -ErrorAction SilentlyContinue |
                     Where-Object { $_.Extension -match '\.(vmem|vmsn|vmss)$' }
 
         if ($memFiles) {
-            Write-Output ""
-            Write-Output "  Memory snapshot files found (VM was SUSPENDED, not shut down):"
+            Write-Host ""
+            Write-Host "  Memory snapshot files found (VM was SUSPENDED, not shut down):"
             foreach ($mf in $memFiles) {
                 $sizeMB = [math]::Round($mf.Length / 1MB, 1)
-                Write-Output "    $($mf.Name) ($sizeMB MB)"
+                Write-Host "    $($mf.Name) ($sizeMB MB)"
                 try {
                     Copy-Item $mf.FullName $sleepDir -Force -ErrorAction Stop
-                    Write-Output "    -> Copied to evidence folder"
+                    Write-Host "    -> Copied to evidence folder"
                 } catch {
-                    Write-Output "    -> WARNING: Could not copy - $_"
+                    Write-Host "    -> WARNING: Could not copy - $_"
                 }
             }
-            Write-Output "  Analyse .vmem with Volatility: vol.py -f vmem_file windows.pslist"
+            Write-Host "  Analyse .vmem with Volatility: vol.py -f vmem_file windows.pslist"
         } else {
-            Write-Output "  NOTE: No memory snapshot found - VM was shut down (not suspended)."
-            Write-Output "  No live memory available for this VM."
+            Write-Host "  NOTE: No memory snapshot found - VM was shut down (not suspended)."
+            Write-Host "  No live memory available for this VM."
         }
     }
 
-    # ── Image the VMDK with FTK ──────────────────────────────────────────────
+    # â”€â”€ Image the VMDK with FTK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ($VmdkPath -and (Test-Path $VmdkPath)) {
-        Write-Output ""
-        Write-Output "  Imaging VMDK with FTK Imager..."
+        Write-Host ""
+        Write-Host "  Imaging VMDK with FTK Imager..."
         Get-FTKImage -OutputPath $sleepDir `
                      -ScriptRoot $ScriptRoot `
                      -SourcePath $VmdkPath `
@@ -679,7 +720,7 @@ function Get-SleepingVMArtefacts {
                      -Description "Offline VMDK image: $VmLabel"
     }
 
-    # ── Write offline analysis notes ─────────────────────────────────────────
+    # â”€â”€ Write offline analysis notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @"
 SLEEPING VM OFFLINE ANALYSIS NOTES
 =====================================
@@ -719,9 +760,9 @@ NEXT STEPS (offline analysis on your analyst workstation):
 All tools above are free from: https://ericzimmermann.com/get-zimtools
 "@ | Out-File (Join-Path $sleepDir "OFFLINE_ANALYSIS_NOTES.txt") -Encoding UTF8
 
-    Write-Output ""
-    Write-Output "  Notes saved to: $sleepDir\OFFLINE_ANALYSIS_NOTES.txt"
-    Write-Output "  Evidence saved to: $sleepDir"
+    Write-Host ""
+    Write-Host "  Notes saved to: $sleepDir\OFFLINE_ANALYSIS_NOTES.txt"
+    Write-Host "  Evidence saved to: $sleepDir"
 
     return $sleepDir
 }
