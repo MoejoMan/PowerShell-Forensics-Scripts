@@ -387,7 +387,7 @@ function New-HTMLReport {
     <div class="card"><h4>Tasks</h4><p>$(@($ScheduledTasks).Count)</p></div>
     <div class="card"><h4>Autoruns</h4><p>$(@($Autoruns).Count)</p></div>
     <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
-    <div class="card"><h4>Security Events</h4><p>$(@($EventLogSecurity).Count)</p></div>
+    <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $EventLogSecurity[0] -ne $null) { @($EventLogSecurity).Count } else { 0 })</p></div>
     <div class="card"><h4>WMI Bindings</h4><p>$(@($WmiPersistence).Count)</p></div>
     <div class="card"><h4>ADS Found</h4><p>$(@($AlternateDataStreams).Count)</p></div>
     <div class="card"><h4>Hidden Files</h4><p>$(@($HiddenFiles).Count)</p></div>
@@ -524,10 +524,15 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($EventLogSecurity -or $EventLogSystem -or $EventLogApplication) {
             $html += "<details><summary>Event Logs (recent triage)</summary>"
 
-            if (@($EventLogSecurity).Count -gt 0) {
+            if ($EventLogSecurity -and @($EventLogSecurity).Count -gt 0 -and $EventLogSecurity[0] -ne $null) {
                 $html += @"
 <h2>Security Log ($(@($EventLogSecurity).Count))</h2>
 $(@($EventLogSecurity) | ConvertTo-Html -Fragment)
+"@
+            } else {
+                $html += @"
+<h2>Security Log</h2>
+<p><em>No security events captured. Security log may require audit policy to be enabled, or elevated privileges were insufficient. The raw .evtx file has been exported for offline analysis.</em></p>
 "@
             }
 
@@ -1339,7 +1344,12 @@ function Get-AlternateDataStreams {
                     $file = $_
                     try {
                         $streams = Get-Item -Path $file.FullName -Stream * -ErrorAction SilentlyContinue |
-                            Where-Object { $_.Stream -ne ':$DATA' -and $_.Stream -ne 'Zone.Identifier' }
+                            Where-Object {
+                                $_.Stream -ne ':$DATA' -and
+                                $_.Stream -ne 'Zone.Identifier' -and
+                                $_.Stream -notmatch '^MBAM\.Zone\.Identifier$' -and
+                                $_.Stream -notmatch '^SmartScreen$'
+                            }
                         foreach ($s in $streams) {
                             $items += [pscustomobject]@{
                                 FilePath   = $file.FullName
@@ -1389,8 +1399,14 @@ function Get-HiddenFiles {
             # Depth-limited to 5 to balance coverage vs performance.
             Get-ChildItem -Path $dir -Recurse -Depth 5 -Force -File -ErrorAction SilentlyContinue |
                 Where-Object {
-                    ($_.Attributes -band [System.IO.FileAttributes]::Hidden) -or
-                    ($_.Attributes -band [System.IO.FileAttributes]::System)
+                    (($_.Attributes -band [System.IO.FileAttributes]::Hidden) -or
+                     ($_.Attributes -band [System.IO.FileAttributes]::System)) -and
+                    # Exclude known-benign Windows hidden/system files
+                    $_.Name -ne 'desktop.ini' -and
+                    $_.Name -notmatch '^~\$' -and                             # Office temp/lock files
+                    $_.FullName -notmatch 'AccountPictures' -and              # Windows profile pictures
+                    $_.FullName -notmatch 'AppData\\Local\\Microsoft' -and  # System cache
+                    $_.FullName -notmatch 'AppData\\Local\\Packages'        # UWP app data
                 } | ForEach-Object {
                     $items += [pscustomobject]@{
                         FullPath       = $_.FullName
@@ -2384,16 +2400,20 @@ function Get-TimestompDetection {
         if (-not (Test-Path $dir)) { continue }
         try {
             Get-ChildItem -Path $dir -Recurse -Depth 4 -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
-                # Created should be <= Modified; if Created > Modified, timestamps were manipulated
+                # Created should be <= Modified; if Created > Modified by more than 24 hours,
+                # timestamps were likely manipulated. Small deltas (< 24h) are common from
+                # file copies, Windows Updates, and app installers — not forensically significant.
                 if ($_.CreationTime -gt $_.LastWriteTime) {
                     $delta = ($_.CreationTime - $_.LastWriteTime).TotalHours
-                    $items += [pscustomobject]@{
-                        FilePath   = $_.FullName
-                        Name       = $_.Name
-                        Created    = $_.CreationTime
-                        Modified   = $_.LastWriteTime
-                        DeltaHours = [math]::Round($delta, 2)
-                        SizeKB     = [math]::Round(($_.Length / 1KB), 2)
+                    if ($delta -ge 24) {
+                        $items += [pscustomobject]@{
+                            FilePath   = $_.FullName
+                            Name       = $_.Name
+                            Created    = $_.CreationTime
+                            Modified   = $_.LastWriteTime
+                            DeltaHours = [math]::Round($delta, 2)
+                            SizeKB     = [math]::Round(($_.Length / 1KB), 2)
+                        }
                     }
                 }
             }
