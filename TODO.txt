@@ -1,4 +1,4 @@
-TODO - Updated 18 Feb 2026
+TODO - Updated 20 Feb 2026
 ==========================
 
 ========== SCRIPT / TECHNICAL (for crime scene day, 28 Feb) ==========
@@ -11,21 +11,32 @@ TODO - Updated 18 Feb 2026
 [DONE] LNK files & Jump Lists (file access history)
 [DONE] Thumbnail cache collection (viewed images/videos)
 [DONE] MFT & USN Journal acquisition (file system timeline + deleted file recovery)
+[DONE] $UsnJrnl:$J raw binary extraction (PowerForensics → esentutl fallback)
 [DONE] Email artefact collection (Outlook PST/OST, Thunderbird, Windows Mail)
 [DONE] Pagefile & hiberfil.sys acquisition (RAM fragments, hibernation memory)
 [DONE] FTK Imager disk imaging integration (E01/RAW with verification)
 [DONE] Sleeping VM artefact workflow (Get-SleepingVMArtefacts - VMDK imaging + notes)
-[DONE] HTML report covers all new artefact sections with summary cards
+[DONE] HTML report covers all artefact sections with summary cards
 [DONE] Transcript logging (Start-Transcript)
 [DONE] SHA256 hashing of all evidence files (chain of custody)
 [DONE] Per-VM evidence separation (Evidence\<VmLabel>\)
 [DONE] Anti-forensics detection (ADS, hidden files, encrypted volumes, timestomping)
 [DONE] Browser artefacts (history, bookmarks, search queries, downloads)
+[DONE] Firefox full support (places.sqlite: history, bookmarks, search queries)
+[DONE] Raw bookmark JSON/SQLite file copying for offline analysis
 [DONE] Volatile evidence (DNS cache, clipboard, mapped drives, RDP sessions)
+[DONE] System info collection (OS, hostname, timezone, uptime, Secure Boot, DeviceGuard, BitLocker)
+[DONE] Boot/Shutdown timeline in HTML report (Event IDs 6005/6006/6008/41/1074)
+[DONE] Print CSS for HTML report (page-break-inside, forced open details)
+[DONE] UTF-8 encoding on all CSV exports
+[DONE] Error/collection summary at end of run (OK/Empty/FAILED counts)
+[DONE] Removed dead Get-EventLogTriage function (replaced by Get-FullEventLogs)
+[DONE] Fixed Format-Table pipeline corruption in early collection functions
+[DONE] Fixed SuppressMessageAttribute placement in main.ps1
+[DONE] Fixed Write-Output → Write-Host in main.ps1 header block
+[DONE] PSScriptAnalyzer: $null comparisons, $input rename, $matches rename
+[DONE] RawCopy no longer needed — PowerForensics + esentutl handle $MFT/$LogFile/$UsnJrnl
 
-[ ] RawCopy64.exe in bin\ - needed by Get-MFTAndUsnJournal to copy locked $MFT/$UsnJrnl
-       Without it, the function falls back to shadow copy or skips. Get from:
-       https://github.com/jschicht/RawCopy
 [ ] Test full script run on a practice VM BEFORE crime scene day
        Run as admin, check all output folders populate, HTML report renders
 [ ] Consider adding: VSS shadow copy browsing/file recovery

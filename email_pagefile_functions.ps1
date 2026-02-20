@@ -209,7 +209,7 @@ function Get-EmailArtefacts {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv (Join-Path $OutputPath "email_artefacts.csv") -NoTypeInformation
+        $items | Export-Csv (Join-Path $OutputPath "email_artefacts.csv") -NoTypeInformation -Encoding UTF8
         Write-Host "  Email artefact summary: $($items.Count) items -> $OutputPath\email_artefacts.csv"
         Write-Host "  Raw files saved to: $emailDir"
         Write-Host ""
@@ -423,7 +423,7 @@ function Get-PagefileAndHiberfil {
         Write-Host ""
     }
 
-    $results | Export-Csv (Join-Path $OutputPath "memory_files_status.csv") -NoTypeInformation
+    $results | Export-Csv (Join-Path $OutputPath "memory_files_status.csv") -NoTypeInformation -Encoding UTF8
     Write-Host "  Status summary saved to: $OutputPath\memory_files_status.csv"
     Write-Host "  Files saved to: $memFileDir"
 

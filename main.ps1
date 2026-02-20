@@ -50,12 +50,29 @@ New-Item -ItemType Directory -Path $evidencePath, $transcriptPath, $htmlReportPa
 $logFile = "$transcriptPath\collection_$(Get-Date -Format 'ddMMyyyy-HHmmss').log"
 Start-Transcript -Path $logFile -Append
 
-Write-Output "=========================================="
-Write-Output "FORENSIC DATA COLLECTION"
-Write-Output "=========================================="
-Write-Output "Start Time : $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')"
-Write-Output "VM Label   : $safeLabel"
-Write-Output ""
+Write-Host "=========================================="
+Write-Host "FORENSIC DATA COLLECTION"
+Write-Host "=========================================="
+Write-Host "Start Time : $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')"
+Write-Host "VM Label   : $safeLabel"
+Write-Host ""
+
+# Collection result tracker
+$script:collectionResults = [System.Collections.ArrayList]::new()
+function Add-CollectionResult {
+    param([string]$Name, [object]$Result)
+    $status = if ($null -eq $Result) { 'FAILED' }
+              elseif ($Result -is [array] -and $Result.Count -eq 0) { 'Empty' }
+              else { 'OK' }
+    $count = if ($Result -is [array]) { $Result.Count }
+             elseif ($Result -and $Result.PSObject.Properties) { 1 }
+             else { 0 }
+    $null = $script:collectionResults.Add([pscustomobject]@{
+        Artifact = $Name
+        Status   = $status
+        Count    = $count
+    })
+}
 
 try {
     # ========================================================================
@@ -86,6 +103,8 @@ try {
     Write-Output ""
 
     $processes      = Get-ProcessList          -OutputPath $evidencePath
+    Write-Output ""
+    $systemInfo      = Get-SystemInfo            -OutputPath $evidencePath
     Write-Output ""
     $users          = Get-UserList             -OutputPath $evidencePath
     Write-Output ""
@@ -209,22 +228,16 @@ try {
     Write-Output "PRIORITY 7: Registry hives, execution artefacts, LNK files"
     Write-Output ""
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $registryHives  = Get-RegistryHives          -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $srumDb         = Get-SRUMDatabase           -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $amcache        = Get-AmcacheAndShimcache    -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $lnkFiles       = Get-LnkAndJumpLists       -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $thumbCache     = Get-ThumbnailCache        -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $mftUsn         = Get-MFTAndUsnJournal      -OutputPath $evidencePath -ScriptRoot $scriptRoot
     Write-Output ""
 
@@ -235,12 +248,59 @@ try {
     Write-Output "PRIORITY 8: Email artefacts and memory files (pagefile/hiberfil)"
     Write-Output ""
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $emailArtefacts  = Get-EmailArtefacts         -OutputPath $evidencePath
     Write-Output ""
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $memoryFiles     = Get-PagefileAndHiberfil    -OutputPath $evidencePath -ScriptRoot $scriptRoot
     Write-Output ""
+
+    # Track collection results for final summary
+    Add-CollectionResult 'RAM Dump'           $ramResult
+    Add-CollectionResult 'System Info'        $systemInfo
+    Add-CollectionResult 'Processes'          $processes
+    Add-CollectionResult 'Users'              $users
+    Add-CollectionResult 'TCP Connections'    $tcpConnections
+    Add-CollectionResult 'Neighbors'          $neighbors
+    Add-CollectionResult 'Prefetch'           $prefetch
+    Add-CollectionResult 'Installed Programs' $installedPrograms
+    Add-CollectionResult 'Services'           $services
+    Add-CollectionResult 'Scheduled Tasks'    $scheduledTasks
+    Add-CollectionResult 'Network Config'     $networkConfig
+    Add-CollectionResult 'Autoruns'           $autoruns
+    Add-CollectionResult 'Browser Artifacts'  $browserArtifacts
+    Add-CollectionResult 'WMI Persistence'    $wmiPersistence
+    Add-CollectionResult 'Event Logs'         $eventLogs
+    Add-CollectionResult 'ADS'                $altDataStreams
+    Add-CollectionResult 'Hidden Files'       $hiddenFiles
+    Add-CollectionResult 'Encrypted Volumes'  $encryptedVolumes
+    Add-CollectionResult 'Shadow Copies'      $shadowCopies
+    Add-CollectionResult 'Timestomped Files'  $timestompedFiles
+    Add-CollectionResult 'Defender Exclusions' $defenderExclusions
+    Add-CollectionResult 'Zone Identifiers'   $zoneIdentifiers
+    Add-CollectionResult 'Recent Activity'    $recentActivity
+    Add-CollectionResult 'USB Devices'        $usbDevices
+    Add-CollectionResult 'Recycle Bin'        $recycleBin
+    Add-CollectionResult 'UserAssist'         $userAssist
+    Add-CollectionResult 'Hosts File'         $hostsFileEntries
+    Add-CollectionResult 'Firewall Rules'     $firewallRules
+    Add-CollectionResult 'WiFi Profiles'      $wifiProfiles
+    Add-CollectionResult 'Wallpaper'          $wallpaperInfo
+    Add-CollectionResult 'Bookmarks'          $browserBookmarks
+    Add-CollectionResult 'Search History'     $browserSearchHistory
+    Add-CollectionResult 'Windows Timeline'   $windowsTimeline
+    Add-CollectionResult 'Game Artifacts'     $gameArtifacts
+    Add-CollectionResult 'DNS Cache'          $dnsCache
+    Add-CollectionResult 'Clipboard'          $clipboardText
+    Add-CollectionResult 'Mapped Drives'      $mappedDrives
+    Add-CollectionResult 'PS History'         $psHistory
+    Add-CollectionResult 'RDP Sessions'       $rdpSessions
+    Add-CollectionResult 'Registry Hives'     $registryHives
+    Add-CollectionResult 'SRUM Database'      $srumDb
+    Add-CollectionResult 'Amcache'            $amcache
+    Add-CollectionResult 'LNK Files'          $lnkFiles
+    Add-CollectionResult 'Thumbnail Cache'    $thumbCache
+    Add-CollectionResult 'MFT/USN Journal'    $mftUsn
+    Add-CollectionResult 'Email Artefacts'    $emailArtefacts
+    Add-CollectionResult 'Memory Files'       $memoryFiles
 
     # ========================================================================
     # FILE HASHING (INTEGRITY)
@@ -253,7 +313,7 @@ try {
             Write-Output "=== Calculating File Hashes (SHA256) ==="
             $hashes = Get-FileHashes -Files $filesToHash
             if ($hashes) {
-                $hashes | Export-Csv "$evidencePath\hashes.csv" -NoTypeInformation
+                $hashes | Export-Csv "$evidencePath\hashes.csv" -NoTypeInformation -Encoding UTF8
                 Write-Output "Hashes saved to: $evidencePath\hashes.csv"
             }
         }
@@ -279,6 +339,7 @@ try {
     # HTML REPORT
     # ========================================================================
     New-HTMLReport -OutputPath $htmlReportPath `
+                   -SystemInfo $systemInfo `
                    -Processes $processes `
                    -Users $users `
                    -TCPConnections $tcpConnections `
@@ -345,6 +406,24 @@ try {
     Write-Output "  Transcript log: $logFile"
     Write-Output "=========================================="
 
+    # Print collection summary
+    if ($script:collectionResults.Count -gt 0) {
+        Write-Output ""
+        Write-Output "=== COLLECTION SUMMARY ==="
+        $okCount   = @($script:collectionResults | Where-Object { $_.Status -eq 'OK' }).Count
+        $failCount = @($script:collectionResults | Where-Object { $_.Status -eq 'FAILED' }).Count
+        $emptyCount = @($script:collectionResults | Where-Object { $_.Status -eq 'Empty' }).Count
+        Write-Output "  OK: $okCount | Empty: $emptyCount | FAILED: $failCount"
+        if ($failCount -gt 0) {
+            Write-Output ""
+            Write-Output "  Failed artifacts:"
+            $script:collectionResults | Where-Object { $_.Status -eq 'FAILED' } | ForEach-Object {
+                Write-Output "    - $($_.Artifact)"
+            }
+        }
+        Write-Output "=========================================="
+    }
+
     Stop-Transcript
 }
 
@@ -408,7 +487,7 @@ if ($doSleepingVM -eq 'Y' -or $doSleepingVM -eq 'y') {
         }
     }
     if ($imageHashResults) {
-        $imageHashResults | Export-Csv "$sleepOutputPath\image_hashes.csv" -NoTypeInformation
+        $imageHashResults | Export-Csv "$sleepOutputPath\image_hashes.csv" -NoTypeInformation -Encoding UTF8
     }
     Write-Host "Image hashes saved to: $sleepOutputPath\image_hashes.csv"
 

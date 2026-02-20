@@ -1,6 +1,4 @@
-﻿Write-Host "Hello, World!"
-
-# Forensic Collection Functions
+﻿# Forensic Collection Functions
 
 # ============================================================================
 # MEMORY ACQUISITION
@@ -103,6 +101,98 @@ function Export-MemoryDump {
 }
 
 # ============================================================================
+# SYSTEM INFORMATION & PRE-FLIGHT CHECKS
+# ============================================================================
+# Collects basic system information: OS, hostname, timezone, uptime, domain,
+# Secure Boot status, and DeviceGuard. Critical for any forensic report and
+# for Volatility profile selection. Also records collection environment.
+function Get-SystemInfo {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting System Information ==="
+    $items = @()
+
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+        $bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+        $tz = [System.TimeZoneInfo]::Local
+
+        # Basic system info
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Hostname';          Value = $env:COMPUTERNAME }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Domain/Workgroup';   Value = if ($cs) { $cs.Domain } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Current User';       Value = "$env:USERDOMAIN\$env:USERNAME" }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'OS';                 Value = if ($os) { "$($os.Caption) $($os.Version)" } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'OS Build';           Value = if ($os) { $os.BuildNumber } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Architecture';       Value = if ($os) { $os.OSArchitecture } else { $env:PROCESSOR_ARCHITECTURE } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Install Date';       Value = if ($os) { $os.InstallDate.ToString('dd-MM-yyyy HH:mm:ss') } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Last Boot';          Value = if ($os) { $os.LastBootUpTime.ToString('dd-MM-yyyy HH:mm:ss') } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Uptime';             Value = if ($os) { "{0}d {1}h {2}m" -f [int]((Get-Date) - $os.LastBootUpTime).TotalDays, ((Get-Date) - $os.LastBootUpTime).Hours, ((Get-Date) - $os.LastBootUpTime).Minutes } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Timezone';           Value = "$($tz.DisplayName) (UTC$($tz.BaseUtcOffset.ToString('hh\:mm')))" }
+        $items += [pscustomobject]@{ Category = 'System';  Property = 'Total RAM (GB)';     Value = if ($cs) { [math]::Round($cs.TotalPhysicalMemory / 1GB, 1) } else { 'N/A' } }
+
+        # BIOS / firmware
+        $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Manufacturer';       Value = if ($bios) { $bios.Manufacturer } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Serial Number';      Value = if ($bios) { $bios.SerialNumber } else { 'N/A' } }
+        $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Model';              Value = if ($cs) { "$($cs.Manufacturer) $($cs.Model)" } else { 'N/A' } }
+
+        # Secure Boot status
+        try {
+            $secureBoot = Confirm-SecureBootUEFI -ErrorAction Stop
+            $items += [pscustomobject]@{ Category = 'Security'; Property = 'Secure Boot';    Value = if ($secureBoot) { 'Enabled' } else { 'Disabled' } }
+        } catch {
+            $items += [pscustomobject]@{ Category = 'Security'; Property = 'Secure Boot';    Value = 'Not supported / Legacy BIOS' }
+        }
+
+        # Device Guard / Credential Guard
+        try {
+            $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+            if ($dg) {
+                $vbsStatus = switch ($dg.VirtualizationBasedSecurityStatus) {
+                    0 { 'Not configured' }; 1 { 'Enabled but not running' }; 2 { 'Running' }; default { "Unknown ($($dg.VirtualizationBasedSecurityStatus))" }
+                }
+                $items += [pscustomobject]@{ Category = 'Security'; Property = 'Device Guard (VBS)'; Value = $vbsStatus }
+
+                $cgRunning = $dg.SecurityServicesRunning -contains 1
+                $items += [pscustomobject]@{ Category = 'Security'; Property = 'Credential Guard';   Value = if ($cgRunning) { 'Running' } else { 'Not running' } }
+            } else {
+                $items += [pscustomobject]@{ Category = 'Security'; Property = 'Device Guard';       Value = 'WMI class not available' }
+            }
+        } catch {
+            $items += [pscustomobject]@{ Category = 'Security'; Property = 'Device Guard';           Value = "Query failed: $_" }
+        }
+
+        # BitLocker quick check (just status, full detail is in Get-EncryptedVolumeDetection)
+        try {
+            $bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
+            $items += [pscustomobject]@{ Category = 'Security'; Property = 'BitLocker C:';    Value = if ($bl) { $bl.ProtectionStatus.ToString() } else { 'N/A' } }
+        } catch {
+            $items += [pscustomobject]@{ Category = 'Security'; Property = 'BitLocker C:';    Value = 'Query failed' }
+        }
+
+        # Collection environment metadata
+        $items += [pscustomobject]@{ Category = 'Collection'; Property = 'Collection Time';    Value = (Get-Date).ToString('dd-MM-yyyy HH:mm:ss') }
+        $items += [pscustomobject]@{ Category = 'Collection'; Property = 'PowerShell Version'; Value = "$($PSVersionTable.PSVersion)" }
+        $items += [pscustomobject]@{ Category = 'Collection'; Property = 'Is Administrator';   Value = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
+
+    } catch {
+        Write-Host "ERROR collecting system info: $_"
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\system_info.csv" -NoTypeInformation -Encoding UTF8
+        Write-Host "System info saved to: $OutputPath\system_info.csv"
+        Write-Host "  OS: $($items | Where-Object { $_.Property -eq 'OS' } | Select-Object -ExpandProperty Value)"
+        Write-Host "  Uptime: $($items | Where-Object { $_.Property -eq 'Uptime' } | Select-Object -ExpandProperty Value)"
+        Write-Host "  Secure Boot: $($items | Where-Object { $_.Property -eq 'Secure Boot' } | Select-Object -ExpandProperty Value)"
+    }
+
+    return $items
+}
+
+# ============================================================================
 # LIVE SYSTEM COLLECTION
 # ============================================================================
 # Collects the current running processes, saves them to CSV, and returns the process objects.
@@ -113,8 +203,7 @@ function Get-ProcessList {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Running Processes ==="
     try {
         $processes = Get-Process | Select-Object Name, Id, CPU, WorkingSet, Path
-        $processes | Format-Table -AutoSize
-        $processes | Export-Csv "$OutputPath\processes.csv" -NoTypeInformation
+        $processes | Export-Csv "$OutputPath\processes.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Processes saved to: $OutputPath\processes.csv"
         return $processes
     } catch {
@@ -131,8 +220,7 @@ function Get-UserList {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Local User Accounts ==="
     try {
         $users = Get-LocalUser | Select-Object Name, Enabled, Description, LastLogon
-        $users | Format-Table -AutoSize
-        $users | Export-Csv "$OutputPath\users.csv" -NoTypeInformation
+        $users | Export-Csv "$OutputPath\users.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Users saved to: $OutputPath\users.csv"
         return $users
     } catch {
@@ -149,8 +237,7 @@ function Get-NetworkConnections {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting TCP Connections ==="
     try {
         $tcpConnections = Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State
-        $tcpConnections | Format-Table -AutoSize
-        $tcpConnections | Export-Csv "$OutputPath\network_tcp.csv" -NoTypeInformation
+        $tcpConnections | Export-Csv "$OutputPath\network_tcp.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "TCP connections saved to: $OutputPath\network_tcp.csv"
         return $tcpConnections
     } catch {
@@ -167,8 +254,7 @@ function Get-NetworkNeighbors {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Network Neighbors (ARP) ==="
     try {
         $neighbors = Get-NetNeighbor -ErrorAction SilentlyContinue | Select-Object IPAddress, LinkLayerAddress, State, InterfaceAlias
-        $neighbors | Format-Table -AutoSize
-        $neighbors | Export-Csv "$OutputPath\network_neighbors.csv" -NoTypeInformation
+        $neighbors | Export-Csv "$OutputPath\network_neighbors.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Network neighbors saved to: $OutputPath\network_neighbors.csv"
         return $neighbors
     } catch {
@@ -193,7 +279,7 @@ function Get-PrefetchFiles {
         $prefetch = $pfFiles | Select-Object Name, LastWriteTime, Length
         
         if ($prefetch) {
-            $prefetch | Export-Csv "$OutputPath\prefetch.csv" -NoTypeInformation
+            $prefetch | Export-Csv "$OutputPath\prefetch.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Prefetch metadata saved to: $OutputPath\prefetch.csv"
 
             # Copy actual .pf files — these contain execution counts, run timestamps,
@@ -267,6 +353,7 @@ function Get-FileHashes {
 function New-HTMLReport {
     param(
         [string]$OutputPath,
+        [object]$SystemInfo,
         [object]$Processes,
         [object]$Users,
         [object]$TCPConnections,
@@ -418,12 +505,30 @@ function New-HTMLReport {
         .card h4 { margin: 0 0 6px 0; color: #2c3e50; font-size: 14px; }
         .card p { margin: 0; font-size: 13px; color: #2c3e50; }
         .muted { color: #7f8c8d; font-size: 12px; }
+        @media print {
+            body { background: white; margin: 0; }
+            details { display: block !important; border: 1px solid #ccc; page-break-inside: avoid; }
+            details > summary { background-color: #34495e; color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            details:not([open]) > *:not(summary) { display: block !important; }
+            .summary { page-break-inside: avoid; }
+            .card { border: 1px solid #999; }
+            table { font-size: 10px; }
+        }
     </style>
 </head>
 <body>
 <h1>Digital Forensic Report</h1>
 <p class="timestamp">Generated: $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')</p>
 <p class="timestamp">Host: $env:COMPUTERNAME | User: $env:USERNAME</p>
+
+$(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
+@"
+<details open>
+    <summary>System Information ($(@($SystemInfo).Count) properties)</summary>
+    $(@($SystemInfo) | ConvertTo-Html -Fragment)
+</details>
+"@
+})
 
 <h3>Report Summary</h3>
 <div class="summary">
@@ -602,6 +707,32 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             }
 
             $html += "</details>"
+        }
+
+        # Boot / Shutdown Timeline (from System event log)
+        if ($EventLogSystem -and @($EventLogSystem).Count -gt 0) {
+            $bootEvents = @($EventLogSystem | Where-Object {
+                $_.Id -in @(6005, 6006, 6008, 6009, 1074, 41)
+            } | Select-Object TimeCreated, Id, @{N='Event';E={
+                switch ($_.Id) {
+                    6005  { 'Event Log Service Started (Boot)' }
+                    6006  { 'Event Log Service Stopped (Shutdown)' }
+                    6008  { 'Unexpected Shutdown (Dirty)' }
+                    6009  { 'OS Version at Boot' }
+                    1074  { 'System Shutdown Initiated' }
+                    41    { 'Kernel Power Failure (Crash/Power Loss)' }
+                    default { "Event $($_.Id)" }
+                }
+            }}, Message)
+            if ($bootEvents.Count -gt 0) {
+                $html += @"
+<details>
+    <summary>Boot / Shutdown Timeline ($($bootEvents.Count) events)</summary>
+    <p><em>Key system lifecycle events: 6005=boot, 6006=clean shutdown, 6008=dirty shutdown, 41=kernel power failure. Gaps or unexpected shutdowns may indicate evidence tampering.</em></p>
+    $($bootEvents | ConvertTo-Html -Fragment)
+</details>
+"@
+            }
         }
 
         if ($Autoruns -and @($Autoruns).Count -gt 0) {
@@ -1097,7 +1228,7 @@ function Get-InstalledPrograms {
         }
 
         if ($all.Count -gt 0) {
-            $all | Export-Csv "$OutputPath\installed_programs.csv" -NoTypeInformation
+            $all | Export-Csv "$OutputPath\installed_programs.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Installed programs saved to: $OutputPath\installed_programs.csv"
         } else {
             Write-Host "(No installed programs found)"
@@ -1118,7 +1249,7 @@ function Get-ServicesList {
     try {
         $services = Get-Service | Select-Object Name, DisplayName, Status, StartType
         if ($services) {
-            $services | Export-Csv "$OutputPath\services.csv" -NoTypeInformation
+            $services | Export-Csv "$OutputPath\services.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Services saved to: $OutputPath\services.csv"
         }
         return $services
@@ -1150,7 +1281,7 @@ function Get-ScheduledTasksList {
         }
 
         if ($tasks) {
-            $tasks | Export-Csv "$OutputPath\tasks.csv" -NoTypeInformation
+            $tasks | Export-Csv "$OutputPath\tasks.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Scheduled tasks saved to: $OutputPath\tasks.csv"
         }
         return $tasks
@@ -1169,7 +1300,7 @@ function Get-NetworkConfig {
     try {
         $adapters = Get-NetIPConfiguration -ErrorAction SilentlyContinue | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer, IPv4DefaultGateway
         if ($adapters) {
-            $adapters | Export-Csv "$OutputPath\network_config.csv" -NoTypeInformation
+            $adapters | Export-Csv "$OutputPath\network_config.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Network configuration saved to: $OutputPath\network_config.csv"
         }
         return $adapters
@@ -1179,53 +1310,7 @@ function Get-NetworkConfig {
     }
 }
 
-function Get-EventLogTriage {
-    param(
-        [string]$OutputPath,
-        [int]$Days = 3
-    )
-
-        # Collects recent events from Security, System, and Application logs (default last 3 days) and exports CSVs.
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Event Log Triage ==="
-    $logs = @{
-        Security    = 'event_security.csv'
-        System      = 'event_system.csv'
-        Application = 'event_application.csv'
-    }
-
-    $results = @{}
-
-    $startTime = (Get-Date).AddDays(-$Days)
-
-    foreach ($logName in $logs.Keys) {
-        $target = Join-Path $OutputPath $logs[$logName]
-        try {
-            $events = Get-WinEvent -FilterHashtable @{
-                LogName   = $logName
-                StartTime = $startTime
-            } -ErrorAction SilentlyContinue |
-                Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
-
-            if ($events) {
-                $events | Export-Csv $target -NoTypeInformation
-                Write-Host "$logName events saved to: $target"
-            } else {
-                Write-Host "(No $logName events found in last $Days days)"
-            }
-
-            $results[$logName] = $events
-        } catch {
-            Write-Host "ERROR collecting $logName log: $_"
-            $results[$logName] = $null
-        }
-    }
-
-    return [pscustomobject]@{
-        Security    = $results.Security
-        System      = $results.System
-        Application = $results.Application
-    }
-}
+# Get-EventLogTriage removed — replaced by Get-FullEventLogs in new_functions.ps1
 
 function Get-WmiPersistence {
     param(
@@ -1301,7 +1386,7 @@ function Get-WmiPersistence {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\wmi_persistence.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\wmi_persistence.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "WMI persistence saved to: $OutputPath\wmi_persistence.csv"
     } else {
         Write-Host "(No WMI persistence entries found)"
@@ -1366,7 +1451,7 @@ function Get-Autoruns {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\autoruns.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\autoruns.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Autoruns saved to: $OutputPath\autoruns.csv"
     } else {
         Write-Host "(No autoruns found)"
@@ -1431,7 +1516,7 @@ function Get-AlternateDataStreams {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\alternate_data_streams.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\alternate_data_streams.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "ADS results saved to: $OutputPath\alternate_data_streams.csv"
     } else {
         Write-Host "(No suspicious alternate data streams found)"
@@ -1488,7 +1573,7 @@ function Get-HiddenFiles {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\hidden_files.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\hidden_files.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Hidden files saved to: $OutputPath\hidden_files.csv"
     } else {
         Write-Host "(No hidden/system files found in scanned paths)"
@@ -1551,7 +1636,7 @@ function Get-EncryptedVolumeDetection {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\encrypted_volumes.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\encrypted_volumes.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Encrypted volume info saved to: $OutputPath\encrypted_volumes.csv"
     } else {
         Write-Host "(No encrypted volumes or containers detected)"
@@ -1624,7 +1709,7 @@ function Get-ZoneIdentifierInfo {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\zone_identifiers.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\zone_identifiers.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Zone.Identifier data saved to: $OutputPath\zone_identifiers.csv"
     } else {
         Write-Host "(No Zone.Identifier data found)"
@@ -1704,7 +1789,7 @@ function Get-RecentFileActivity {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\recent_file_activity.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\recent_file_activity.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Recent file activity saved to: $OutputPath\recent_file_activity.csv"
     } else {
         Write-Host "(No recent file activity found)"
@@ -1767,7 +1852,7 @@ function Get-USBDeviceHistory {
     } catch { }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\usb_device_history.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\usb_device_history.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "USB device history saved to: $OutputPath\usb_device_history.csv"
     } else {
         Write-Host "(No USB device history found)"
@@ -1809,7 +1894,7 @@ function Get-RecycleBinContents {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\recycle_bin.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\recycle_bin.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Recycle Bin metadata saved to: $OutputPath\recycle_bin.csv"
     } else {
         Write-Host "(Recycle Bin is empty or inaccessible)"
@@ -1883,7 +1968,7 @@ function Get-DNSCache {
         $dns = Get-DnsClientCache -ErrorAction SilentlyContinue |
             Select-Object Entry, RecordName, RecordType, Status, Section, TimeToLive, DataLength, Data
         if ($dns) {
-            $dns | Export-Csv "$OutputPath\dns_cache.csv" -NoTypeInformation
+            $dns | Export-Csv "$OutputPath\dns_cache.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "DNS cache saved to: $OutputPath\dns_cache.csv"
         } else {
             Write-Host "(DNS cache is empty)"
@@ -1971,7 +2056,7 @@ function Get-MappedDrivesAndShares {
     } catch { }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\mapped_drives_shares.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\mapped_drives_shares.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Mapped drives/shares saved to: $OutputPath\mapped_drives_shares.csv"
     } else {
         Write-Host "(No mapped drives or shares found)"
@@ -2021,7 +2106,7 @@ function Get-PowerShellHistory {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\powershell_history.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\powershell_history.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "PowerShell history saved to: $OutputPath\powershell_history.csv"
     } else {
         Write-Host "(No PowerShell history files found)"
@@ -2111,7 +2196,7 @@ function Get-RDPAndRemoteSessions {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\rdp_remote_sessions.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\rdp_remote_sessions.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "RDP/remote session data saved to: $OutputPath\rdp_remote_sessions.csv"
     } else {
         Write-Host "(No RDP or remote session artifacts found)"
@@ -2412,7 +2497,7 @@ function Get-BrowserArtifactsAndDownloads {
         try {
             $downloads = Get-ChildItem -Path $downloadsFolder -File -ErrorAction SilentlyContinue | Select-Object Name, FullName, Length, LastWriteTime
             if ($downloads) {
-                $downloads | Export-Csv "$OutputPath\downloads.csv" -NoTypeInformation
+                $downloads | Export-Csv "$OutputPath\downloads.csv" -NoTypeInformation -Encoding UTF8
                 Write-Host "Downloads listing saved to: $OutputPath\downloads.csv"
             }
         } catch {
@@ -2427,6 +2512,18 @@ function Get-BrowserArtifactsAndDownloads {
         @{ Name='Chrome-History'; Path=Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\Default\History' },
         @{ Name='Edge-History'; Path=Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data\Default\History' }
     )
+
+    # Add Firefox profiles (places.sqlite contains history + bookmarks)
+    $ffProfileRoot = "$env:APPDATA\Mozilla\Firefox\Profiles"
+    if (Test-Path $ffProfileRoot) {
+        $ffProfiles = Get-ChildItem $ffProfileRoot -Directory -Filter '*.default*' -ErrorAction SilentlyContinue
+        foreach ($prof in $ffProfiles) {
+            $placesDb = Join-Path $prof.FullName 'places.sqlite'
+            if (Test-Path $placesDb) {
+                $targets += @{ Name="Firefox-$($prof.Name)-History"; Path=$placesDb }
+            }
+        }
+    }
 
     foreach ($t in $targets) {
         $source = $t.Path
@@ -2481,7 +2578,7 @@ function Get-ShadowCopies {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\shadow_copies.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\shadow_copies.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Shadow copies saved to: $OutputPath\shadow_copies.csv"
     } else {
         Write-Host "(No shadow copies found - may indicate VSS deletion)"
@@ -2537,7 +2634,7 @@ function Get-TimestompDetection {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\timestomped_files.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\timestomped_files.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Timestomped files saved to: $OutputPath\timestomped_files.csv"
     } else {
         Write-Host "(No timestamp anomalies detected)"
@@ -2618,7 +2715,7 @@ function Get-UserAssistHistory {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\userassist.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\userassist.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "UserAssist data saved to: $OutputPath\userassist.csv"
     } else {
         Write-Host "(No UserAssist data found)"
@@ -2678,7 +2775,7 @@ function Get-HostsFileCheck {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\hosts_file.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\hosts_file.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Hosts file analysis saved to: $OutputPath\hosts_file.csv"
     } else {
         Write-Host "(Hosts file not found or empty)"
@@ -2721,7 +2818,7 @@ function Get-FirewallRules {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\firewall_rules.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\firewall_rules.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Firewall rules saved to: $OutputPath\firewall_rules.csv"
     } else {
         Write-Host "(No matching firewall rules found)"
@@ -2787,7 +2884,7 @@ function Get-DefenderExclusions {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\defender_exclusions.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\defender_exclusions.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Defender exclusions saved to: $OutputPath\defender_exclusions.csv"
     } else {
         Write-Host "(No Defender exclusions configured)"
@@ -2842,7 +2939,7 @@ function Get-WiFiProfiles {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\wifi_profiles.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\wifi_profiles.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "WiFi profiles saved: $($items.Count) networks to $OutputPath\wifi_profiles.csv"
     } else {
         Write-Host "(No saved WiFi profiles found)"
@@ -2905,7 +3002,7 @@ function Get-WallpaperInfo {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\wallpaper_info.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\wallpaper_info.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Wallpaper info saved to: $OutputPath\wallpaper_info.csv"
     } else {
         Write-Host "(No wallpaper information found)"
@@ -2972,8 +3069,79 @@ function Get-BrowserBookmarks {
         }
     }
 
+    # Firefox bookmarks from places.sqlite (requires Python for SQLite access)
+    $ffProfileRoot = "$env:APPDATA\Mozilla\Firefox\Profiles"
+    if (Test-Path $ffProfileRoot) {
+        $pythonPath = (Get-Command python -ErrorAction SilentlyContinue).Path
+        if (-not $pythonPath) { $pythonPath = (Get-Command python3 -ErrorAction SilentlyContinue).Path }
+
+        if ($pythonPath) {
+            $ffProfiles = Get-ChildItem $ffProfileRoot -Directory -Filter '*.default*' -ErrorAction SilentlyContinue
+            foreach ($prof in $ffProfiles) {
+                $placesDb = Join-Path $prof.FullName 'places.sqlite'
+                if (Test-Path $placesDb) {
+                    # Copy to temp so we don't lock the live DB
+                    $tmpDb = Join-Path $env:TEMP "ff_places_bm_$($prof.Name).sqlite"
+                    Copy-Item $placesDb $tmpDb -Force -ErrorAction SilentlyContinue
+                    try {
+                        $pyScript = @"
+import sqlite3, json
+conn = sqlite3.connect(r'$tmpDb')
+cur = conn.cursor()
+cur.execute('''
+    SELECT b.title, p.url, b.dateAdded, f.title
+    FROM moz_bookmarks b
+    JOIN moz_places p ON b.fk = p.id
+    LEFT JOIN moz_bookmarks f ON b.parent = f.id
+    WHERE b.type = 1 AND p.url NOT LIKE 'place:%'
+    ORDER BY b.dateAdded DESC
+''')
+results = [{'name': r[0] or '(untitled)', 'url': r[1], 'folder': r[3] or 'root'} for r in cur.fetchall()]
+conn.close()
+print(json.dumps(results))
+"@
+                        $pyResult = & $pythonPath -c $pyScript 2>$null
+                        if ($pyResult) {
+                            $ffBookmarks = $pyResult | ConvertFrom-Json
+                            foreach ($bm in $ffBookmarks) {
+                                $items += [pscustomobject]@{
+                                    Browser = 'Firefox'
+                                    Folder  = $bm.folder
+                                    Name    = $bm.name
+                                    URL     = $bm.url
+                                }
+                            }
+                            Write-Host "  Firefox bookmarks: $($ffBookmarks.Count) from $($prof.Name)"
+                        }
+                    } catch {
+                        Write-Host "WARNING: Failed to parse Firefox bookmarks - $_"
+                    } finally {
+                        Remove-Item $tmpDb -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        } else {
+            Write-Host "  (Python not available - skipping Firefox bookmark parsing)"
+        }
+    }
+
+    # Copy raw bookmark JSON files for offline analysis
+    $browserDir = "$OutputPath\browser_artifacts"
+    New-Item -ItemType Directory -Path $browserDir -Force | Out-Null
+    foreach ($browser in $browsers.GetEnumerator()) {
+        if (Test-Path $browser.Value) {
+            $destName = "$($browser.Key)-Bookmarks.json"
+            try {
+                Copy-Item -Path $browser.Value -Destination "$browserDir\$destName" -Force -ErrorAction Stop
+                Write-Host "  Copied raw $($browser.Key) bookmarks to $browserDir\$destName"
+            } catch {
+                Write-Host "  WARNING: Could not copy $($browser.Key) bookmarks - $_"
+            }
+        }
+    }
+
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\browser_bookmarks.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\browser_bookmarks.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Browser bookmarks saved: $($items.Count) bookmarks to $OutputPath\browser_bookmarks.csv"
     } else {
         Write-Host "(No browser bookmarks found)"
@@ -3061,8 +3229,72 @@ print(json.dumps(results))
         Write-Host "WARNING: Python not found - cannot parse SQLite databases for search history"
     }
 
+    # Firefox search history from places.sqlite
+    if ($pythonPath) {
+        $ffProfileRoot = "$env:APPDATA\Mozilla\Firefox\Profiles"
+        if (Test-Path $ffProfileRoot) {
+            $ffProfiles = Get-ChildItem $ffProfileRoot -Directory -Filter '*.default*' -ErrorAction SilentlyContinue
+            foreach ($prof in $ffProfiles) {
+                $placesDb = Join-Path $prof.FullName 'places.sqlite'
+                if (Test-Path $placesDb) {
+                    $tmpDb = Join-Path $env:TEMP "ff_places_search_$($prof.Name).sqlite"
+                    Copy-Item $placesDb $tmpDb -Force -ErrorAction SilentlyContinue
+                    try {
+                        $pyScript = @"
+import sqlite3, json
+from urllib.parse import urlparse, parse_qs, unquote
+from datetime import datetime
+
+def ff_time(t):
+    try:
+        return datetime.utcfromtimestamp(t / 1000000).strftime('%Y-%m-%d %H:%M:%S')
+    except:
+        return '?'
+
+conn = sqlite3.connect(r'$tmpDb')
+cur = conn.cursor()
+cur.execute("SELECT url, last_visit_date FROM moz_places WHERE url LIKE '%google.com/search%' OR url LIKE '%bing.com/search%' OR url LIKE '%duckduckgo.com/%q=%' OR url LIKE '%yahoo.com/search%' ORDER BY last_visit_date DESC")
+results = []
+seen = set()
+for url, lvd in cur.fetchall():
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    query = params.get('q', params.get('Q', params.get('p', [''])))[0]
+    if query and query not in seen:
+        seen.add(query)
+        if 'google.com' in url: engine = 'Google'
+        elif 'bing.com' in url: engine = 'Bing'
+        elif 'duckduckgo.com' in url: engine = 'DuckDuckGo'
+        elif 'yahoo.com' in url: engine = 'Yahoo'
+        else: engine = 'Other'
+        results.append({'ts': ff_time(lvd) if lvd else '?', 'engine': engine, 'query': unquote(query)})
+conn.close()
+print(json.dumps(results))
+"@
+                        $pyResult = & $pythonPath -c $pyScript 2>$null
+                        if ($pyResult) {
+                            $ffSearches = $pyResult | ConvertFrom-Json
+                            foreach ($s in $ffSearches) {
+                                $items += [pscustomobject]@{
+                                    Timestamp = $s.ts
+                                    Engine    = "$($s.engine) (Firefox)"
+                                    Query     = $s.query
+                                }
+                            }
+                            Write-Host "  Firefox searches: $($ffSearches.Count) queries"
+                        }
+                    } catch {
+                        Write-Host "WARNING: Failed to parse Firefox search history - $_"
+                    } finally {
+                        Remove-Item $tmpDb -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    }
+
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\browser_search_history.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\browser_search_history.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Search history saved: $($items.Count) queries to $OutputPath\browser_search_history.csv"
     } else {
         Write-Host "(No browser search queries found)"
@@ -3178,7 +3410,7 @@ print(json.dumps(results))
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\windows_timeline.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\windows_timeline.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Timeline saved: $($items.Count) activities to $OutputPath\windows_timeline.csv"
     } else {
         Write-Host "(No timeline activities found)"
@@ -3308,7 +3540,7 @@ function Get-GameArtifacts {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv "$OutputPath\game_artifacts.csv" -NoTypeInformation
+        $items | Export-Csv "$OutputPath\game_artifacts.csv" -NoTypeInformation -Encoding UTF8
         Write-Host "Game artifacts saved: $($items.Count) items to $OutputPath\game_artifacts.csv"
     } else {
         Write-Host "(No game artifacts found)"

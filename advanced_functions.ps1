@@ -264,7 +264,7 @@ function Get-AmcacheAndShimcache {
     }
     # Export ShimCache metadata if any entries found
     if ($shimItems.Count -gt 0) {
-        $shimItems | Export-Csv (Join-Path $amcacheDir 'shimcache_metadata.csv') -NoTypeInformation
+        $shimItems | Export-Csv (Join-Path $amcacheDir 'shimcache_metadata.csv') -NoTypeInformation -Encoding UTF8
     }
 
     return $amcacheDst
@@ -341,7 +341,7 @@ function Get-LnkAndJumpLists {
     }
 
     if ($items.Count -gt 0) {
-        $items | Export-Csv (Join-Path $OutputPath "lnk_metadata.csv") -NoTypeInformation
+        $items | Export-Csv (Join-Path $OutputPath "lnk_metadata.csv") -NoTypeInformation -Encoding UTF8
         Write-Host "  LNK metadata CSV: $($items.Count) entries -> $OutputPath\lnk_metadata.csv"
     }
 
@@ -465,7 +465,7 @@ function Get-MFTAndUsnJournal {
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $mftDest = Join-Path $mftDir "`$MFT"
-            Copy-ForensicFile -Path 'C:\`$MFT' -Destination $mftDest -ErrorAction Stop
+            Copy-ForensicFile -Path "C:\`$MFT" -Destination $mftDest -ErrorAction Stop
             if (Test-Path $mftDest) {
                 $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
                 Write-Host "  `$MFT extracted via PowerForensics ($sizeMB MB) -> $mftDest"
@@ -523,7 +523,7 @@ function Get-MFTAndUsnJournal {
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $logDest = Join-Path $mftDir "`$LogFile"
-            Copy-ForensicFile -Path 'C:\`$LogFile' -Destination $logDest -ErrorAction Stop
+            Copy-ForensicFile -Path "C:\`$LogFile" -Destination $logDest -ErrorAction Stop
             if (Test-Path $logDest) {
                 $sizeMB = [math]::Round((Get-Item $logDest).Length / 1MB, 1)
                 Write-Host "  `$LogFile extracted via PowerForensics ($sizeMB MB) -> $logDest"
@@ -553,6 +553,49 @@ function Get-MFTAndUsnJournal {
 
     if (-not $logFileExtracted) {
         Write-Host "  WARNING: Could not extract `$LogFile."
+    }
+
+    # ── 4. $UsnJrnl:$J raw binary copy ────────────────────────────────────────
+    # The raw $J stream is needed by MFTECmd for proper parsing.
+    # fsutil gives a text dump (already done above); this copies the binary stream.
+    Write-Host "  Extracting `$UsnJrnl:`$J (raw binary stream)..."
+    $usnExtracted = $false
+
+    # Strategy A: PowerForensics
+    if ($hasPowerForensics -and -not $usnExtracted) {
+        try {
+            Import-Module $pfModule -Force -ErrorAction Stop
+            $usnDest = Join-Path $mftDir "`$J"
+            Copy-ForensicFile -Path "C:\`$Extend\`$UsnJrnl" -Destination $usnDest -ErrorAction Stop
+            if (Test-Path $usnDest) {
+                $sizeMB = [math]::Round((Get-Item $usnDest).Length / 1MB, 1)
+                Write-Host "  `$UsnJrnl:`$J extracted via PowerForensics ($sizeMB MB) -> $usnDest"
+                $usnExtracted = $true
+            }
+        } catch {
+            Write-Host "  PowerForensics `$UsnJrnl:`$J failed: $_"
+        }
+    }
+
+    # Strategy B: esentutl fallback
+    if (-not $usnExtracted) {
+        try {
+            $usnDest = Join-Path $mftDir "`$J"
+            $esentUsn = & esentutl.exe /y /vss "C:\`$Extend\`$UsnJrnl:`$J" /d $usnDest 2>&1
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $usnDest)) {
+                $sizeMB = [math]::Round((Get-Item $usnDest).Length / 1MB, 1)
+                Write-Host "  `$UsnJrnl:`$J extracted via esentutl ($sizeMB MB) -> $usnDest"
+                $usnExtracted = $true
+            } else {
+                Write-Host "  esentutl `$UsnJrnl:`$J failed: $esentUsn"
+            }
+        } catch {
+            Write-Host "  esentutl `$UsnJrnl:`$J error: $_"
+        }
+    }
+
+    if (-not $usnExtracted) {
+        Write-Host "  WARNING: Could not extract raw `$UsnJrnl:`$J. The text dump from fsutil is still available."
     }
 
     return $mftDir

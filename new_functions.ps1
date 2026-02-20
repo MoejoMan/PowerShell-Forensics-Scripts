@@ -66,7 +66,7 @@ function Get-FullEventLogs {
                     @{ N='Message'; E={ $_.Message -replace '\s+', ' ' } }
 
             if ($events) {
-                $events | Export-Csv $csvOut -NoTypeInformation
+                $events | Export-Csv $csvOut -NoTypeInformation -Encoding UTF8
                 Write-Host "  Triage CSV: $($events.Count) key events -> $csvOut"
             } else {
                 Write-Host "  (No key event IDs found in $logName)"
@@ -121,8 +121,8 @@ function Invoke-MultiVMCollection {
     # â”€â”€ Gather VM targets interactively â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     $vmCount = 0
     while ($vmCount -lt 1 -or $vmCount -gt 10) {
-        $input = Read-Host "How many VMs do you want to process? (1-10)"
-        if ($input -match '^\d+$') { $vmCount = [int]$input }
+        $vmCountInput = Read-Host "How many VMs do you want to process? (1-10)"
+        if ($vmCountInput -match '^\d+$') { $vmCount = [int]$vmCountInput }
     }
 
     $vmTargets = @()
