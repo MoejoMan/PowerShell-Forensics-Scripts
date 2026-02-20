@@ -446,16 +446,10 @@ function Get-MFTAndUsnJournal {
         Write-Host "  WARNING: USN Journal export failed - $_"
     }
 
-    # â”€â”€ 2. $MFT via RawCopy/Rawccopy or MFTECmd if available in bin\ â”€â”€â”€â”€â”€â”€â”€â”€
-    $rawCopyPaths = @(
-        (Join-Path $ScriptRoot "bin\rawccopy.exe"),
-        (Join-Path $ScriptRoot "bin\rawccopy\rawccopy.exe"),
-        (Join-Path $ScriptRoot "bin\rawccopy64.exe"),
-        (Join-Path $ScriptRoot "bin\RawCopy\RawCopy.exe"),
-        (Join-Path $ScriptRoot "bin\RawCopy64.exe"),
-        (Join-Path $ScriptRoot "bin\RawCopy.exe")
-    )
-    $rawCopy = $rawCopyPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    # ── 2. $MFT extraction ── PowerForensics > RawCopy > MFTECmd > esentutl ────
+    # Try PowerForensics Copy-ForensicFile first (reads raw NTFS, no external exe needed)
+    $pfModule = Join-Path $ScriptRoot "bin\PowerForensicsv2\PowerForensicsv2.psd1"
+    $hasPowerForensics = Test-Path $pfModule
 
     $mftEcmdPaths = @(
         (Join-Path $ScriptRoot "bin\MFTECmd.exe"),
@@ -465,18 +459,20 @@ function Get-MFTAndUsnJournal {
 
     $mftExtracted = $false
 
-    if ($rawCopy) {
-        Write-Host "  RawCopy/Rawccopy found - extracting `$MFT..."
+    # Strategy A: PowerForensics Copy-ForensicFile (reads raw NTFS directly)
+    if ($hasPowerForensics -and -not $mftExtracted) {
+        Write-Host "  PowerForensics found — extracting `$MFT via Copy-ForensicFile..."
         try {
-            $mftDest = Join-Path $mftDir "MFT"
-            & $rawCopy /FileNamePath:C:\`$MFT /OutputPath:$mftDir 2>&1 | ForEach-Object { Write-Host "  $_" }
+            Import-Module $pfModule -Force -ErrorAction Stop
+            $mftDest = Join-Path $mftDir "`$MFT"
+            Copy-ForensicFile -Path 'C:\`$MFT' -Destination $mftDest -ErrorAction Stop
             if (Test-Path $mftDest) {
                 $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
-                Write-Host "  `$MFT extracted ($sizeMB MB) -> $mftDest"
+                Write-Host "  `$MFT extracted via PowerForensics ($sizeMB MB) -> $mftDest"
                 $mftExtracted = $true
             }
         } catch {
-            Write-Host "  ERROR: RawCopy failed - $_"
+            Write-Host "  PowerForensics Copy-ForensicFile failed: $_"
         }
     }
 
@@ -548,12 +544,12 @@ function Get-FTKImage {
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === FTK Imager Disk Imaging ==="
 
-    # Find ftkimager.exe - check script root and known subfolder
+    # Find ftkimager.exe - check bin\FTKImager\ and fallbacks
     $ftkPaths = @(
+        (Join-Path $ScriptRoot "bin\FTKImager\ftkimager.exe"),
         (Join-Path $ScriptRoot "bin\ftkimager.exe"),
         (Join-Path $ScriptRoot "SimpleImager-main\ftkimager.exe"),
-        (Join-Path $ScriptRoot "ftkimager.exe"),
-        "C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\SimpleImager-main\ftkimager.exe"
+        (Join-Path $ScriptRoot "ftkimager.exe")
     )
     $ftk = $ftkPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 

@@ -26,6 +26,7 @@ function Export-MemoryDump {
 
     $candidatePaths = @(
         "bin\winpmem\go-winpmem_amd64_1.0-rc2_signed.exe",
+        "bin\winpmem\winpmem_mini_x64_rc2.exe",
         "bin\go-winpmem_amd64_1.0-rc2_signed.exe",
         "go-winpmem_amd64_1.0-rc2_signed.exe"
     ) | ForEach-Object { Join-Path -Path $PSScriptRoot -ChildPath $_ }
@@ -152,18 +153,39 @@ function Get-PrefetchFiles {
         [string]$OutputPath
     )
     # Enumerates Windows prefetch (.pf) files for recent program execution artefacts and exports to CSV.
+    # Also copies the actual .pf files — they contain execution count, timestamps, and DLL/file references.
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
         Write-Host "WARNING: Not running as administrator; Prefetch access may be blocked."
     }
     try {
-        $prefetch = Get-ChildItem "C:\Windows\Prefetch\*.pf" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime, Length
+        $pfFiles = Get-ChildItem "C:\Windows\Prefetch\*.pf" -ErrorAction SilentlyContinue
+        $prefetch = $pfFiles | Select-Object Name, LastWriteTime, Length
         
         if ($prefetch) {
-            $prefetch | Format-Table -AutoSize
             $prefetch | Export-Csv "$OutputPath\prefetch.csv" -NoTypeInformation
-            Write-Host "Prefetch files saved to: $OutputPath\prefetch.csv"
+            Write-Host "Prefetch metadata saved to: $OutputPath\prefetch.csv"
+
+            # Copy actual .pf files — these contain execution counts, run timestamps,
+            # and lists of files/DLLs loaded by each program. Parse with PECmd.exe.
+            $pfDir = Join-Path $OutputPath "prefetch_files"
+            New-Item -ItemType Directory -Path $pfDir -Force | Out-Null
+            $copied = 0
+            foreach ($pf in $pfFiles) {
+                try {
+                    Copy-Item $pf.FullName (Join-Path $pfDir $pf.Name) -Force -ErrorAction Stop
+                    $copied++
+                } catch {
+                    # Prefetch files can sometimes be locked briefly
+                    try {
+                        & esentutl.exe /y /vss $pf.FullName /d (Join-Path $pfDir $pf.Name) 2>$null
+                        if ($LASTEXITCODE -eq 0) { $copied++ }
+                    } catch { }
+                }
+            }
+            Write-Host "  Copied $copied / $($pfFiles.Count) .pf files -> $pfDir"
+            Write-Host "  Parse with: PECmd.exe -d `"$pfDir`" --csv output_folder"
         } else {
             Write-Host "(No prefetch files found)"
         }
@@ -1745,10 +1767,59 @@ function Get-RecycleBinContents {
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\recycle_bin.csv" -NoTypeInformation
-        Write-Host "Recycle Bin contents saved to: $OutputPath\recycle_bin.csv"
+        Write-Host "Recycle Bin metadata saved to: $OutputPath\recycle_bin.csv"
     } else {
         Write-Host "(Recycle Bin is empty or inaccessible)"
     }
+
+    # Copy the actual deleted files ($R* files) from all user Recycle Bins.
+    # Each deleted file is stored as $R<id>.<ext> (the content) alongside
+    # $I<id>.<ext> (the metadata: original path, deletion time).
+    $rbDir = Join-Path $OutputPath "recycle_bin_files"
+    New-Item -ItemType Directory -Path $rbDir -Force | Out-Null
+    $copied = 0
+    $totalSize = 0
+
+    try {
+        # All users' recycle bins live under C:\`$Recycle.Bin\<SID>\
+        $recyclePaths = Get-ChildItem 'C:\$Recycle.Bin' -Directory -Force -ErrorAction SilentlyContinue
+        foreach ($sidDir in $recyclePaths) {
+            $sidName = $sidDir.Name
+            $destSidDir = Join-Path $rbDir $sidName
+
+            $rbFiles = Get-ChildItem $sidDir.FullName -Force -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '^\$[RI]' }
+
+            if ($rbFiles) {
+                New-Item -ItemType Directory -Path $destSidDir -Force | Out-Null
+                foreach ($f in $rbFiles) {
+                    try {
+                        Copy-Item $f.FullName (Join-Path $destSidDir $f.Name) -Force -ErrorAction Stop
+                        $copied++
+                        $totalSize += $f.Length
+                    } catch {
+                        # Some may be locked or permission-denied
+                        try {
+                            & esentutl.exe /y $f.FullName /d (Join-Path $destSidDir $f.Name) 2>$null
+                            if ($LASTEXITCODE -eq 0) { $copied++; $totalSize += $f.Length }
+                        } catch { }
+                    }
+                }
+            }
+        }
+    } catch {
+        Write-Host "WARNING: Recycle Bin file copy failed - $_"
+    }
+
+    if ($copied -gt 0) {
+        $sizeMB = [math]::Round($totalSize / 1MB, 1)
+        Write-Host "  Copied $copied recycle bin files ($sizeMB MB) -> $rbDir"
+        Write-Host "  \$I files = metadata (original path + delete time)"
+        Write-Host "  \$R files = actual deleted file content"
+    } else {
+        Write-Host "  (No recycle bin files to copy)"
+    }
+
     return $items
 }
 
@@ -2046,6 +2117,7 @@ function Get-MemoryStrings {
         (Get-Command vol.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
         (Get-Command vol.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
         (Join-Path $ScriptRoot "bin\volatility3\vol.exe"),
+        (Join-Path $ScriptRoot "bin\volatility3\vol.py"),
         (Join-Path $ScriptRoot "bin\vol.exe"),
         (Join-Path $ScriptRoot "bin\vol.py")
     ) | Where-Object { $_ -and (Test-Path $_) }

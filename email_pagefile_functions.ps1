@@ -355,9 +355,9 @@ function Get-PagefileAndHiberfil {
         # â”€â”€ Strategy 4: FTK Imager CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (-not $copied) {
             $ftkPaths = @(
+                (Join-Path $ScriptRoot "bin\FTKImager\ftkimager.exe"),
                 (Join-Path $ScriptRoot "bin\ftkimager.exe"),
-                (Join-Path $ScriptRoot "SimpleImager-main\ftkimager.exe"),
-                "C:\Users\jhg56\Documents\POWERSHELL SCRIPTING\SimpleImager-main\ftkimager.exe"
+                (Join-Path $ScriptRoot "SimpleImager-main\ftkimager.exe")
             )
             $ftk = $ftkPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 

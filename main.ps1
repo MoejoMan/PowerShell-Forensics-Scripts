@@ -1,4 +1,4 @@
-# Forensic Data Collection Script
+﻿# Forensic Data Collection Script
 param(
     [switch]$SkipRamDump,
     [switch]$SkipHashes,
@@ -15,6 +15,19 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 . "$PSScriptRoot\advanced_functions.ps1"
 . "$PSScriptRoot\new_functions.ps1"
 . "$PSScriptRoot\email_pagefile_functions.ps1"
+
+# Load PowerForensics module from bin\ if available (for $MFT, Prefetch, USN, etc.)
+$pfModulePath = Join-Path $PSScriptRoot "bin\PowerForensicsv2\PowerForensicsv2.psd1"
+if (Test-Path $pfModulePath) {
+    try {
+        Import-Module $pfModulePath -Force -ErrorAction Stop
+        Write-Host "[PowerForensics] Module loaded from bin\PowerForensicsv2\"
+    } catch {
+        Write-Host "[PowerForensics] WARNING: Failed to load module - $_"
+    }
+} else {
+    Write-Host "[PowerForensics] Module not found at bin\PowerForensicsv2\ (optional)"
+}
 
 # ── Batch mode: hand off to the multi-VM orchestrator and exit ───────────────
 if ($BatchMode) {
