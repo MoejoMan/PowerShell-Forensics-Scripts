@@ -347,3 +347,78 @@ try {
 
     Stop-Transcript
 }
+
+# ============================================================================
+# SLEEPING VM IMAGE ACQUISITION (runs after live triage + transcript close)
+# ============================================================================
+# This runs outside the try/finally so the live evidence is already safe.
+# FTK Imager creates an E01 forensic image of the sleeping VM's VMDK and
+# copies any .vmem memory snapshot for Volatility analysis.
+Write-Host ""
+Write-Host "=========================================="
+Write-Host "  SLEEPING VM ACQUISITION"
+Write-Host "=========================================="
+Write-Host ""
+Write-Host "If there is a sleeping/suspended VM at the scene, you should image"
+Write-Host "its VMDK disk file now. This creates an E01 forensic image + hashes."
+Write-Host ""
+
+$doSleepingVM = Read-Host "Image a sleeping VM? (Y/N)"
+if ($doSleepingVM -eq 'Y' -or $doSleepingVM -eq 'y') {
+
+    $vmdkInput = Read-Host "Enter full path to VMDK/VHD file (or press Enter to auto-search C:\)"
+    $sleepLabel = Read-Host "Enter a label for this VM (e.g. VM2_Sleeping)"
+    if (-not $sleepLabel) { $sleepLabel = "VM2_Sleeping" }
+
+    $sleepOutputPath = "$scriptRoot\Evidence\$sleepLabel"
+    New-Item -ItemType Directory -Path $sleepOutputPath -Force | Out-Null
+
+    # Start a separate transcript for the sleeping VM
+    $sleepTranscript = "$scriptRoot\Transcript\${sleepLabel}\transcript_$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+    New-Item -ItemType Directory -Path (Split-Path $sleepTranscript) -Force | Out-Null
+    Start-Transcript -Path $sleepTranscript -Force
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting sleeping VM acquisition: $sleepLabel"
+
+    Get-SleepingVMArtefacts -OutputPath $sleepOutputPath `
+                            -ScriptRoot $scriptRoot `
+                            -VmLabel $sleepLabel `
+                            -VmdkPath $vmdkInput
+
+    # Generate hashes of the acquired image files
+    Write-Host ""
+    Write-Host "=== Hashing acquired image files ==="
+    $imageFiles = Get-ChildItem "$sleepOutputPath" -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -match '\.(E01|001|raw|vmem|vmsn|vmss)$' }
+    $imageHashResults = @()
+    foreach ($img in $imageFiles) {
+        Write-Host "  Hashing $($img.Name)..."
+        $md5  = (Get-FileHash $img.FullName -Algorithm MD5).Hash
+        $sha1 = (Get-FileHash $img.FullName -Algorithm SHA1).Hash
+        $sha256 = (Get-FileHash $img.FullName -Algorithm SHA256).Hash
+        Write-Host "    MD5   : $md5"
+        Write-Host "    SHA1  : $sha1"
+        Write-Host "    SHA256: $sha256"
+        $imageHashResults += [pscustomobject]@{
+            File   = $img.Name
+            MD5    = $md5
+            SHA1   = $sha1
+            SHA256 = $sha256
+            SizeMB = [math]::Round($img.Length / 1MB, 1)
+        }
+    }
+    if ($imageHashResults) {
+        $imageHashResults | Export-Csv "$sleepOutputPath\image_hashes.csv" -NoTypeInformation
+    }
+    Write-Host "Image hashes saved to: $sleepOutputPath\image_hashes.csv"
+
+    Write-Host ""
+    Write-Host "=========================================="
+    Write-Host "Sleeping VM acquisition complete."
+    Write-Host "Evidence: $sleepOutputPath"
+    Write-Host "=========================================="
+
+    Stop-Transcript
+} else {
+    Write-Host "Skipping sleeping VM acquisition."
+}

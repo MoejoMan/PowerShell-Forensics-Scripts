@@ -68,6 +68,7 @@ function Get-EmailArtefacts {
 
                     # Try esentutl first (built-in, no external tools)
                     try {
+                        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
                         $esentResult = & esentutl.exe /y /vss $mf.FullName /d $dest 2>&1
                         if ($LASTEXITCODE -eq 0 -and (Test-Path $dest)) {
                             $copyStatus = "Copied (esentutl)"
@@ -297,6 +298,7 @@ function Get-PagefileAndHiberfil {
         if (-not $copied) {
             try {
                 Write-Host "    Trying esentutl.exe /y /vss (built-in Windows)..."
+                [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
                 $esentResult = & esentutl.exe /y /vss $src /d $dest 2>&1
                 if ($LASTEXITCODE -eq 0 -and (Test-Path $dest)) {
                     $copied = $true

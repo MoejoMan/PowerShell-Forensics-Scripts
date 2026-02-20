@@ -33,44 +33,73 @@ function Export-MemoryDump {
 
     $winpmem = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-    if (-not $winpmem) {
-        Write-Host "ERROR: WinPmem not found. Checked:"
+    # Also check for DumpIt.exe as a fallback RAM acquisition tool
+    $dumpItPaths = @(
+        "bin\DumpIt.exe",
+        "bin\dumpit\DumpIt.exe",
+        "DumpIt.exe"
+    ) | ForEach-Object { Join-Path -Path $PSScriptRoot -ChildPath $_ }
+    $dumpIt = $dumpItPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if (-not $winpmem -and -not $dumpIt) {
+        Write-Host "ERROR: No RAM acquisition tool found. Checked:"
         $candidatePaths | ForEach-Object { Write-Host "  $_" }
-        $result.Error = "WinPmem not found"
+        $dumpItPaths | ForEach-Object { Write-Host "  $_" }
+        $result.Error = "No RAM tool found (WinPmem/DumpIt)"
         return $result
     }
 
-    try {
-        $outputFile = Join-Path $OutputPath "memory_$(Get-Date -Format 'ddMMyyyy-HHmmss').raw"
-        Write-Host "Acquiring memory... this may take a minute"
-        Write-Host "Using WinPmem: $winpmem"
+    $outputFile = Join-Path $OutputPath "memory_$(Get-Date -Format 'ddMMyyyy-HHmmss').raw"
 
-        $winpmemOutput = & $winpmem acquire --progress "$outputFile" 2>&1
-        $exitCode = $LASTEXITCODE
+    # ── Strategy 1: WinPmem ──────────────────────────────────────────────────
+    if ($winpmem) {
+        try {
+            Write-Host "Acquiring memory via WinPmem... this may take a minute"
+            Write-Host "Using WinPmem: $winpmem"
 
-        if ($winpmemOutput) {
-            Write-Host "WinPmem output:"
-            $winpmemOutput | ForEach-Object { Write-Host "  $_" }
+            $winpmemOutput = & $winpmem acquire --progress "$outputFile" 2>&1
+            $exitCode = $LASTEXITCODE
+
+            if ($winpmemOutput) {
+                Write-Host "WinPmem output:"
+                $winpmemOutput | ForEach-Object { Write-Host "  $_" }
+            }
+
+            if ($exitCode -eq 0 -and (Test-Path $outputFile)) {
+                $result.Success = $true
+                $result.Path = $outputFile
+                Write-Host "RAM saved to: $outputFile"
+                return $result
+            }
+            Write-Host "WinPmem failed (exit code $exitCode). Trying DumpIt fallback..."
+        } catch {
+            Write-Host "WinPmem error: $_  — Trying DumpIt fallback..."
         }
-
-        if ($exitCode -ne 0) {
-            $result.Error = "WinPmem exit code $exitCode"
-            return $result
-        }
-
-        if (Test-Path $outputFile) {
-            $result.Success = $true
-            $result.Path = $outputFile
-            Write-Host "RAM saved to: $outputFile"
-            return $result
-        }
-
-        $result.Error = "WinPmem completed but no output file was created."
-        return $result
-    } catch {
-        $result.Error = "ERROR dumping RAM: $_"
-        return $result
     }
+
+    # ── Strategy 2: DumpIt.exe ───────────────────────────────────────────────
+    if ($dumpIt -and -not $result.Success) {
+        try {
+            Write-Host "Acquiring memory via DumpIt: $dumpIt"
+            $dumpItProc = Start-Process -FilePath $dumpIt `
+                -ArgumentList "/quiet", "/accepteula", "/output", $outputFile `
+                -Wait -PassThru -NoNewWindow
+            if ($dumpItProc.ExitCode -eq 0 -and (Test-Path $outputFile)) {
+                $result.Success = $true
+                $result.Path = $outputFile
+                Write-Host "RAM saved via DumpIt to: $outputFile"
+                return $result
+            }
+            Write-Host "DumpIt failed (exit code $($dumpItProc.ExitCode))"
+        } catch {
+            Write-Host "DumpIt error: $_"
+        }
+    }
+
+    if (-not $result.Success) {
+        $result.Error = "All RAM acquisition methods failed (WinPmem + DumpIt)"
+    }
+    return $result
 }
 
 # ============================================================================
@@ -327,7 +356,7 @@ function New-HTMLReport {
         if ($RDPSessions) { $RDPSessions = @($RDPSessions | Where-Object { $_.Type } | Select-Object Type, Target, Username, Detail) }
         # --- New anti-forensic sections ---
         if ($ShadowCopies) { $ShadowCopies = @($ShadowCopies | Where-Object { $_.ShadowID -or $_.VolumeName } | Select-Object ShadowID, VolumeName, InstallDate, OriginMachine, ServiceMachine) }
-        if ($TimestompedFiles) { $TimestompedFiles = @($TimestompedFiles | Where-Object { $_.FilePath } | Select-Object FilePath, Name, Created, Modified, DeltaHours, SizeKB) }
+        if ($TimestompedFiles) { $TimestompedFiles = @($TimestompedFiles | Where-Object { $_.FilePath } | Select-Object FilePath, Name, Created, Modified, SizeKB) }
         if ($UserAssist) { $UserAssist = @($UserAssist | Where-Object { $_.ProgramName } | Select-Object ProgramName, RunCount, LastRun, FocusTime, Source) }
         if ($HostsFileEntries) { $HostsFileEntries = @($HostsFileEntries | Where-Object { $_.IP } | Select-Object IP, Hostname, Status) }
         if ($FirewallRules) { $FirewallRules = @($FirewallRules | Where-Object { $_.DisplayName } | Select-Object DisplayName, Direction, Action, Protocol, LocalPort, RemoteAddress, Enabled, Profile) }
@@ -409,7 +438,7 @@ function New-HTMLReport {
     <div class="card"><h4>Tasks</h4><p>$(@($ScheduledTasks).Count)</p></div>
     <div class="card"><h4>Autoruns</h4><p>$(@($Autoruns).Count)</p></div>
     <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
-    <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $EventLogSecurity[0] -ne $null) { @($EventLogSecurity).Count } else { 0 })</p></div>
+    <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $null -ne $EventLogSecurity[0]) { @($EventLogSecurity).Count } else { 0 })</p></div>
     <div class="card"><h4>WMI Bindings</h4><p>$(@($WmiPersistence).Count)</p></div>
     <div class="card"><h4>ADS Found</h4><p>$(@($AlternateDataStreams).Count)</p></div>
     <div class="card"><h4>Hidden Files</h4><p>$(@($HiddenFiles).Count)</p></div>
@@ -546,7 +575,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($EventLogSecurity -or $EventLogSystem -or $EventLogApplication) {
             $html += "<details><summary>Event Logs (recent triage)</summary>"
 
-            if ($EventLogSecurity -and @($EventLogSecurity).Count -gt 0 -and $EventLogSecurity[0] -ne $null) {
+            if ($EventLogSecurity -and @($EventLogSecurity).Count -gt 0 -and $null -ne $EventLogSecurity[0]) {
                 $html += @"
 <h2>Security Log ($(@($EventLogSecurity).Count))</h2>
 $(@($EventLogSecurity) | ConvertTo-Html -Fragment)
@@ -942,12 +971,26 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         }
 
         if ($MFTUsn) {
+            # List what was actually collected in the mft_usn folder
+            $mftFiles = @()
+            if (Test-Path $MFTUsn) {
+                $mftFiles = Get-ChildItem $MFTUsn -File -ErrorAction SilentlyContinue |
+                    Select-Object @{N='File';E={$_.Name}}, @{N='SizeMB';E={[math]::Round($_.Length/1MB,1)}}, @{N='Collected';E={$_.LastWriteTime.ToString('dd-MM-yyyy HH:mm:ss')}}
+            }
+            $mftTableHtml = if ($mftFiles) { $mftFiles | ConvertTo-Html -Fragment } else { "<p>No files found in evidence folder.</p>" }
             $html += @"
 <details>
-    <summary>MFT &amp; USN Journal (Priority 7)</summary>
-    <p><em>The Master File Table (`$MFT) is the index of every file on an NTFS volume — deleted entries persist until overwritten. The USN Change Journal records every file system operation (create, modify, rename, delete).</em></p>
+    <summary>MFT, `$LogFile &amp; USN Journal ($(@($mftFiles).Count) files) (Priority 7)</summary>
+    <p><em>The Master File Table (`$MFT) indexes every file on an NTFS volume &mdash; deleted entries persist until overwritten.
+    The `$LogFile is the NTFS transaction log recording all metadata changes. The USN Change Journal records every file system operation (create, modify, rename, delete).</em></p>
     <p><strong>Collected to:</strong> $MFTUsn</p>
-    <p><strong>Parse with:</strong> MFTECmd.exe (Eric Zimmermann) for timeline analysis</p>
+    $mftTableHtml
+    <p><strong>Parse with:</strong></p>
+    <ul>
+        <li>`$MFT: <code>MFTECmd.exe -f `$MFT --csv output\</code> &mdash; full file system timeline</li>
+        <li>`$LogFile: <code>LogFileParser.exe</code> (TZWorks) &mdash; NTFS transaction reconstruction</li>
+        <li>USN Journal: <code>MFTECmd.exe -f `$J --csv output\</code> &mdash; change history</li>
+    </ul>
 </details>
 "@
         }
@@ -2260,10 +2303,10 @@ function Get-MemoryStrings {
                     $destFile = Join-Path $memDir "strings_$($pat.Name).txt"
                     Write-Host "  Searching for $($pat.Desc)..."
                     try {
-                        $matches = Select-String -Path $rawStringsFile -Pattern $pat.Regex -AllMatches -ErrorAction SilentlyContinue
-                        if ($matches) {
+                        $patternMatches = Select-String -Path $rawStringsFile -Pattern $pat.Regex -AllMatches -ErrorAction SilentlyContinue
+                        if ($patternMatches) {
                             # Deduplicate and save
-                            $unique = $matches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
+                            $unique = $patternMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
                             $unique | Out-File $destFile -Encoding UTF8
                             $count = $unique.Count
                             Write-Host "    -> $count unique $($pat.Desc) saved to $destFile"
@@ -2483,7 +2526,6 @@ function Get-TimestompDetection {
                             Name       = $_.Name
                             Created    = $_.CreationTime
                             Modified   = $_.LastWriteTime
-                            DeltaHours = [math]::Round($delta, 2)
                             SizeKB     = [math]::Round(($_.Length / 1KB), 2)
                         }
                     }

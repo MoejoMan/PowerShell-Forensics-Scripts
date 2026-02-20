@@ -512,6 +512,49 @@ function Get-MFTAndUsnJournal {
         Write-Host "  The raw `$MFT file is locked by NTFS. Last resort: FTK Imager GUI."
     }
 
+    # ── 3. $LogFile (NTFS transaction log) ─────────────────────────────────────
+    # The NTFS $LogFile records all metadata changes (file create/delete/rename).
+    # Critical for timeline reconstruction — shows what happened even after deletion.
+    Write-Host "  Extracting `$LogFile (NTFS transaction log)..."
+    $logFileExtracted = $false
+
+    # Strategy A: PowerForensics
+    if ($hasPowerForensics -and -not $logFileExtracted) {
+        try {
+            Import-Module $pfModule -Force -ErrorAction Stop
+            $logDest = Join-Path $mftDir "`$LogFile"
+            Copy-ForensicFile -Path 'C:\`$LogFile' -Destination $logDest -ErrorAction Stop
+            if (Test-Path $logDest) {
+                $sizeMB = [math]::Round((Get-Item $logDest).Length / 1MB, 1)
+                Write-Host "  `$LogFile extracted via PowerForensics ($sizeMB MB) -> $logDest"
+                $logFileExtracted = $true
+            }
+        } catch {
+            Write-Host "  PowerForensics `$LogFile failed: $_"
+        }
+    }
+
+    # Strategy B: esentutl fallback
+    if (-not $logFileExtracted) {
+        try {
+            $logDest = Join-Path $mftDir "`$LogFile"
+            $esentLog = & esentutl.exe /y /vss "C:\`$LogFile" /d $logDest 2>&1
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $logDest)) {
+                $sizeMB = [math]::Round((Get-Item $logDest).Length / 1MB, 1)
+                Write-Host "  `$LogFile extracted via esentutl ($sizeMB MB) -> $logDest"
+                $logFileExtracted = $true
+            } else {
+                Write-Host "  esentutl `$LogFile failed: $esentLog"
+            }
+        } catch {
+            Write-Host "  esentutl `$LogFile error: $_"
+        }
+    }
+
+    if (-not $logFileExtracted) {
+        Write-Host "  WARNING: Could not extract `$LogFile."
+    }
+
     return $mftDir
 }
 
