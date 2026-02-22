@@ -20,6 +20,8 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 $pfModulePath = Join-Path $PSScriptRoot "bin\PowerForensicsv2\PowerForensicsv2.psd1"
 if (Test-Path $pfModulePath) {
     try {
+        # Remove MOTW zone tags so .NET will load the DLL (downloaded files are blocked by default)
+        Get-ChildItem (Split-Path $pfModulePath) -Recurse | Unblock-File -ErrorAction SilentlyContinue
         Import-Module $pfModulePath -Force -ErrorAction Stop
         Write-Host "[PowerForensics] Module loaded from bin\PowerForensicsv2\"
     } catch {
