@@ -183,8 +183,14 @@ function Invoke-MultiVMCollection {
             if ($vm.SkipRam)    { $subArgs += "-SkipRamDump" }
             if ($vm.SkipHashes) { $subArgs += "-SkipHashes" }
 
-            # Launch as a new elevated process and wait for it
-            $proc = Start-Process powershell -ArgumentList $subArgs -Verb RunAs -Wait -PassThru
+            # Launch per-VM. If already elevated, run directly (no extra UAC prompt).
+            # If not elevated, request elevation.
+            $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            if ($isAdmin) {
+                $proc = Start-Process powershell -ArgumentList $subArgs -Wait -PassThru
+            } else {
+                $proc = Start-Process powershell -ArgumentList $subArgs -Verb RunAs -Wait -PassThru
+            }
 
             if ($proc.ExitCode -eq 0) {
                 $vm.Status = 'Complete'

@@ -63,10 +63,15 @@ Write-Host ""
 $script:collectionResults = [System.Collections.ArrayList]::new()
 function Add-CollectionResult {
     param([string]$Name, [object]$Result)
-    $status = if ($null -eq $Result) { 'FAILED' }
-              elseif ($Result -is [array] -and $Result.Count -eq 0) { 'Empty' }
+    # Note: PowerShell unwraps empty arrays to $null, so $null means "none found" not "error".
+    # Actual errors are logged by each function via Write-Host. This tracks data yield only.
+    $status = if ($null -eq $Result) { 'None' }
+              elseif ($Result -is [string]) { 'OK' }
+              elseif ($Result -is [array] -and $Result.Count -eq 0) { 'None' }
               else { 'OK' }
-    $count = if ($Result -is [array]) { $Result.Count }
+    $count = if ($null -eq $Result) { 0 }
+             elseif ($Result -is [array]) { $Result.Count }
+             elseif ($Result -is [string]) { 1 }
              elseif ($Result -and $Result.PSObject.Properties) { 1 }
              else { 0 }
     $null = $script:collectionResults.Add([pscustomobject]@{
@@ -256,7 +261,7 @@ try {
     Write-Output ""
 
     # Track collection results for final summary
-    Add-CollectionResult 'RAM Dump'           $ramResult
+    Add-CollectionResult 'RAM Dump'           $(if ($ramResult.Success) { $ramResult } else { $null })
     Add-CollectionResult 'System Info'        $systemInfo
     Add-CollectionResult 'Processes'          $processes
     Add-CollectionResult 'Users'              $users
@@ -268,9 +273,9 @@ try {
     Add-CollectionResult 'Scheduled Tasks'    $scheduledTasks
     Add-CollectionResult 'Network Config'     $networkConfig
     Add-CollectionResult 'Autoruns'           $autoruns
-    Add-CollectionResult 'Browser Artifacts'  $browserArtifacts
+    Add-CollectionResult 'Browser Artifacts'  $(if ($browserArtifacts) { @($browserArtifacts.BrowserCopies) + @($browserArtifacts.Downloads) | Where-Object { $_ } } else { $null })
     Add-CollectionResult 'WMI Persistence'    $wmiPersistence
-    Add-CollectionResult 'Event Logs'         $eventLogs
+    Add-CollectionResult 'Event Logs'         $(if ($eventLogs) { @($eventLogs.Security) + @($eventLogs.System) + @($eventLogs.Application) | Where-Object { $_ } } else { $null })
     Add-CollectionResult 'ADS'                $altDataStreams
     Add-CollectionResult 'Hidden Files'       $hiddenFiles
     Add-CollectionResult 'Encrypted Volumes'  $encryptedVolumes
@@ -295,12 +300,12 @@ try {
     Add-CollectionResult 'Mapped Drives'      $mappedDrives
     Add-CollectionResult 'PS History'         $psHistory
     Add-CollectionResult 'RDP Sessions'       $rdpSessions
-    Add-CollectionResult 'Registry Hives'     $registryHives
-    Add-CollectionResult 'SRUM Database'      $srumDb
-    Add-CollectionResult 'Amcache'            $amcache
+    Add-CollectionResult 'Registry Hives'     $(if ($registryHives -and (Get-ChildItem $registryHives -File -ErrorAction SilentlyContinue)) { $registryHives } else { $null })
+    Add-CollectionResult 'SRUM Database'      $(if ($srumDb -and (Test-Path $srumDb)) { $srumDb } else { $null })
+    Add-CollectionResult 'Amcache'            $(if ($amcache -and (Test-Path $amcache)) { $amcache } else { $null })
     Add-CollectionResult 'LNK Files'          $lnkFiles
-    Add-CollectionResult 'Thumbnail Cache'    $thumbCache
-    Add-CollectionResult 'MFT/USN Journal'    $mftUsn
+    Add-CollectionResult 'Thumbnail Cache'    $(if ($thumbCache -and (Get-ChildItem $thumbCache -File -ErrorAction SilentlyContinue)) { $thumbCache } else { $null })
+    Add-CollectionResult 'MFT/USN Journal'    $(if ($mftUsn -and (Get-ChildItem $mftUsn -File -ErrorAction SilentlyContinue)) { $mftUsn } else { $null })
     Add-CollectionResult 'Email Artefacts'    $emailArtefacts
     Add-CollectionResult 'Memory Files'       $memoryFiles
 
@@ -412,14 +417,13 @@ try {
     if ($script:collectionResults.Count -gt 0) {
         Write-Output ""
         Write-Output "=== COLLECTION SUMMARY ==="
-        $okCount   = @($script:collectionResults | Where-Object { $_.Status -eq 'OK' }).Count
-        $failCount = @($script:collectionResults | Where-Object { $_.Status -eq 'FAILED' }).Count
-        $emptyCount = @($script:collectionResults | Where-Object { $_.Status -eq 'Empty' }).Count
-        Write-Output "  OK: $okCount | Empty: $emptyCount | FAILED: $failCount"
-        if ($failCount -gt 0) {
+        $okCount    = @($script:collectionResults | Where-Object { $_.Status -eq 'OK' }).Count
+        $noneCount  = @($script:collectionResults | Where-Object { $_.Status -eq 'None' }).Count
+        Write-Output "  Collected: $okCount | No data: $noneCount"
+        if ($noneCount -gt 0) {
             Write-Output ""
-            Write-Output "  Failed artifacts:"
-            $script:collectionResults | Where-Object { $_.Status -eq 'FAILED' } | ForEach-Object {
+            Write-Output "  No data found for:"
+            $script:collectionResults | Where-Object { $_.Status -eq 'None' } | ForEach-Object {
                 Write-Output "    - $($_.Artifact)"
             }
         }
@@ -454,7 +458,7 @@ if ($doSleepingVM -eq 'Y' -or $doSleepingVM -eq 'y') {
     $sleepOutputPath = "$scriptRoot\Evidence\$sleepLabel"
     New-Item -ItemType Directory -Path $sleepOutputPath -Force | Out-Null
 
-    # Start a separate transcript for the sleeping VM
+    # Start transcript BEFORE any work so prompts + output are captured
     $sleepTranscript = "$scriptRoot\Transcript\${sleepLabel}\transcript_$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
     New-Item -ItemType Directory -Path (Split-Path $sleepTranscript) -Force | Out-Null
     Start-Transcript -Path $sleepTranscript -Force

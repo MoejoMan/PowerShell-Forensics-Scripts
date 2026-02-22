@@ -275,7 +275,7 @@ function Get-PrefetchFiles {
         Write-Host "WARNING: Not running as administrator; Prefetch access may be blocked."
     }
     try {
-        $pfFiles = Get-ChildItem "C:\Windows\Prefetch\*.pf" -ErrorAction SilentlyContinue
+        $pfFiles = Get-ChildItem "$env:SystemRoot\Prefetch\*.pf" -ErrorAction SilentlyContinue
         $prefetch = $pfFiles | Select-Object Name, LastWriteTime, Length
         
         if ($prefetch) {
@@ -524,7 +524,7 @@ function New-HTMLReport {
 $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
 @"
 <details open>
-    <summary>System Information ($(@($SystemInfo).Count) properties)</summary>
+    <summary>System Information ($(if($SystemInfo){@($SystemInfo).Count}else{0}) properties)</summary>
     $(@($SystemInfo) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -533,36 +533,36 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
 <h3>Report Summary</h3>
 <div class="summary">
     <div class="card"><h4>RAM Dump</h4><p>$ramStatus</p><p class="muted">$ramDetails</p></div>
-    <div class="card"><h4>Processes</h4><p>$(@($Processes).Count)</p></div>
-    <div class="card"><h4>Users</h4><p>$(@($Users).Count)</p></div>
-    <div class="card"><h4>TCP Connections</h4><p>$(@($TCPConnections).Count)</p></div>
-    <div class="card"><h4>Neighbors</h4><p>$(@($Neighbors).Count)</p></div>
-    <div class="card"><h4>Prefetch</h4><p>$(@($PrefetchFiles).Count)</p></div>
-    <div class="card"><h4>Installed Apps</h4><p>$(@($InstalledPrograms).Count)</p></div>
-    <div class="card"><h4>Services</h4><p>$(@($Services).Count)</p></div>
-    <div class="card"><h4>Tasks</h4><p>$(@($ScheduledTasks).Count)</p></div>
-    <div class="card"><h4>Autoruns</h4><p>$(@($Autoruns).Count)</p></div>
-    <div class="card"><h4>Downloads</h4><p>$(@($downloads).Count)</p></div>
+    <div class="card"><h4>Processes</h4><p>$(if($Processes){@($Processes).Count}else{0})</p></div>
+    <div class="card"><h4>Users</h4><p>$(if($Users){@($Users).Count}else{0})</p></div>
+    <div class="card"><h4>TCP Connections</h4><p>$(if($TCPConnections){@($TCPConnections).Count}else{0})</p></div>
+    <div class="card"><h4>Neighbors</h4><p>$(if($Neighbors){@($Neighbors).Count}else{0})</p></div>
+    <div class="card"><h4>Prefetch</h4><p>$(if($PrefetchFiles){@($PrefetchFiles).Count}else{0})</p></div>
+    <div class="card"><h4>Installed Apps</h4><p>$(if($InstalledPrograms){@($InstalledPrograms).Count}else{0})</p></div>
+    <div class="card"><h4>Services</h4><p>$(if($Services){@($Services).Count}else{0})</p></div>
+    <div class="card"><h4>Tasks</h4><p>$(if($ScheduledTasks){@($ScheduledTasks).Count}else{0})</p></div>
+    <div class="card"><h4>Autoruns</h4><p>$(if($Autoruns){@($Autoruns).Count}else{0})</p></div>
+    <div class="card"><h4>Downloads</h4><p>$(if($downloads){@($downloads).Count}else{0})</p></div>
     <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $null -ne $EventLogSecurity[0]) { @($EventLogSecurity).Count } else { 0 })</p></div>
-    <div class="card"><h4>WMI Bindings</h4><p>$(@($WmiPersistence).Count)</p></div>
-    <div class="card"><h4>ADS Found</h4><p>$(@($AlternateDataStreams).Count)</p></div>
-    <div class="card"><h4>Hidden Files</h4><p>$(@($HiddenFiles).Count)</p></div>
-    <div class="card"><h4>USB Devices</h4><p>$(@($USBDevices).Count)</p></div>
-    <div class="card"><h4>Recycle Bin</h4><p>$(@($RecycleBin).Count)</p></div>
-    <div class="card"><h4>DNS Cache</h4><p>$(@($DNSCache).Count)</p></div>
-    <div class="card"><h4>RDP Sessions</h4><p>$(@($RDPSessions).Count)</p></div>
-    <div class="card"><h4>Memory IOCs</h4><p>$(@($MemoryStrings).Count)</p></div>
-    <div class="card"><h4>Shadow Copies</h4><p>$(@($ShadowCopies).Count)</p></div>
-    <div class="card"><h4>Timestomped</h4><p>$(@($TimestompedFiles).Count)</p></div>
-    <div class="card"><h4>UserAssist</h4><p>$(@($UserAssist).Count)</p></div>
-    <div class="card"><h4>Firewall Rules</h4><p>$(@($FirewallRules).Count)</p></div>
-    <div class="card"><h4>Defender Excl.</h4><p>$(@($DefenderExclusions).Count)</p></div>
+    <div class="card"><h4>WMI Bindings</h4><p>$(if($WmiPersistence){@($WmiPersistence).Count}else{0})</p></div>
+    <div class="card"><h4>ADS Found</h4><p>$(if($AlternateDataStreams){@($AlternateDataStreams).Count}else{0})</p></div>
+    <div class="card"><h4>Hidden Files</h4><p>$(if($HiddenFiles){@($HiddenFiles).Count}else{0})</p></div>
+    <div class="card"><h4>USB Devices</h4><p>$(if($USBDevices){@($USBDevices).Count}else{0})</p></div>
+    <div class="card"><h4>Recycle Bin</h4><p>$(if($RecycleBin){@($RecycleBin).Count}else{0})</p></div>
+    <div class="card"><h4>DNS Cache</h4><p>$(if($DNSCache){@($DNSCache).Count}else{0})</p></div>
+    <div class="card"><h4>RDP Sessions</h4><p>$(if($RDPSessions){@($RDPSessions).Count}else{0})</p></div>
+    <div class="card"><h4>Memory IOCs</h4><p>$(if($MemoryStrings){@($MemoryStrings).Count}else{0})</p></div>
+    <div class="card"><h4>Shadow Copies</h4><p>$(if($ShadowCopies){@($ShadowCopies).Count}else{0})</p></div>
+    <div class="card"><h4>Timestomped</h4><p>$(if($TimestompedFiles){@($TimestompedFiles).Count}else{0})</p></div>
+    <div class="card"><h4>UserAssist</h4><p>$(if($UserAssist){@($UserAssist).Count}else{0})</p></div>
+    <div class="card"><h4>Firewall Rules</h4><p>$(if($FirewallRules){@($FirewallRules).Count}else{0})</p></div>
+    <div class="card"><h4>Defender Excl.</h4><p>$(if($DefenderExclusions){@($DefenderExclusions).Count}else{0})</p></div>
     <div class="card"><h4>Registry Hives</h4><p>$(if($RegistryHives){'Collected'}else{'N/A'})</p></div>
     <div class="card"><h4>SRUM DB</h4><p>$(if($SRUMDatabase){'Collected'}else{'N/A'})</p></div>
     <div class="card"><h4>Amcache</h4><p>$(if($Amcache){'Collected'}else{'N/A'})</p></div>
-    <div class="card"><h4>LNK Files</h4><p>$(@($LnkFiles).Count)</p></div>
-    <div class="card"><h4>Email Items</h4><p>$(@($EmailArtefacts).Count)</p></div>
-    <div class="card"><h4>Memory Files</h4><p>$(@($MemoryFiles).Count)</p></div>
+    <div class="card"><h4>LNK Files</h4><p>$(if($LnkFiles){@($LnkFiles).Count}else{0})</p></div>
+    <div class="card"><h4>Email Items</h4><p>$(if($EmailArtefacts){@($EmailArtefacts).Count}else{0})</p></div>
+    <div class="card"><h4>Memory Files</h4><p>$(if($MemoryFiles){@($MemoryFiles).Count}else{0})</p></div>
 </div>
 
 <details open>
@@ -587,7 +587,7 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
         if ($Processes -and @($Processes).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Running Processes ($(@($Processes).Count) entries)</summary>
+    <summary>Running Processes ($(if($Processes){@($Processes).Count}else{0}) entries)</summary>
     $(@($Processes) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -597,7 +597,7 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
         if ($Users -and @($Users).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>User Accounts ($(@($Users).Count) users)</summary>
+    <summary>User Accounts ($(if($Users){@($Users).Count}else{0}) users)</summary>
     $(@($Users) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -609,14 +609,14 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
             
             if (@($TCPConnections).Count -gt 0) {
                 $html += @"
-<h2>TCP Connections ($(@($TCPConnections).Count))</h2>
+<h2>TCP Connections ($(if($TCPConnections){@($TCPConnections).Count}else{0}))</h2>
 $(@($TCPConnections) | ConvertTo-Html -Fragment)
 "@
             }
             
             if (@($Neighbors).Count -gt 0) {
                 $html += @"
-<h2>Network Neighbors / ARP ($(@($Neighbors).Count))</h2>
+<h2>Network Neighbors / ARP ($(if($Neighbors){@($Neighbors).Count}else{0}))</h2>
 $(@($Neighbors) | ConvertTo-Html -Fragment)
 "@
             }
@@ -628,7 +628,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($PrefetchFiles -and @($PrefetchFiles).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Prefetch Files ($(@($PrefetchFiles).Count) files)</summary>
+    <summary>Prefetch Files ($(if($PrefetchFiles){@($PrefetchFiles).Count}else{0}) files)</summary>
     $(@($PrefetchFiles) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -644,7 +644,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($InstalledPrograms -and @($InstalledPrograms).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Installed Programs ($(@($InstalledPrograms).Count))</summary>
+    <summary>Installed Programs ($(if($InstalledPrograms){@($InstalledPrograms).Count}else{0}))</summary>
     $(@($InstalledPrograms) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -653,7 +653,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($Services -and @($Services).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Services ($(@($Services).Count))</summary>
+    <summary>Services ($(if($Services){@($Services).Count}else{0}))</summary>
     $(@($Services) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -662,7 +662,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($ScheduledTasks -and @($ScheduledTasks).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Scheduled Tasks ($(@($ScheduledTasks).Count))</summary>
+    <summary>Scheduled Tasks ($(if($ScheduledTasks){@($ScheduledTasks).Count}else{0}))</summary>
     $(@($ScheduledTasks) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -671,7 +671,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
         if ($NetworkConfig -and @($NetworkConfig).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Network Configuration ($(@($NetworkConfig).Count))</summary>
+    <summary>Network Configuration ($(if($NetworkConfig){@($NetworkConfig).Count}else{0}))</summary>
     $(@($NetworkConfig) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -682,7 +682,7 @@ $(@($Neighbors) | ConvertTo-Html -Fragment)
 
             if ($EventLogSecurity -and @($EventLogSecurity).Count -gt 0 -and $null -ne $EventLogSecurity[0]) {
                 $html += @"
-<h2>Security Log ($(@($EventLogSecurity).Count))</h2>
+<h2>Security Log ($(if($EventLogSecurity){@($EventLogSecurity).Count}else{0}))</h2>
 $(@($EventLogSecurity) | ConvertTo-Html -Fragment)
 "@
             } else {
@@ -694,14 +694,14 @@ $(@($EventLogSecurity) | ConvertTo-Html -Fragment)
 
             if (@($EventLogSystem).Count -gt 0) {
                 $html += @"
-<h2>System Log ($(@($EventLogSystem).Count))</h2>
+<h2>System Log ($(if($EventLogSystem){@($EventLogSystem).Count}else{0}))</h2>
 $(@($EventLogSystem) | ConvertTo-Html -Fragment)
 "@
             }
 
             if (@($EventLogApplication).Count -gt 0) {
                 $html += @"
-<h2>Application Log ($(@($EventLogApplication).Count))</h2>
+<h2>Application Log ($(if($EventLogApplication){@($EventLogApplication).Count}else{0}))</h2>
 $(@($EventLogApplication) | ConvertTo-Html -Fragment)
 "@
             }
@@ -738,7 +738,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($Autoruns -and @($Autoruns).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Autoruns ($(@($Autoruns).Count))</summary>
+    <summary>Autoruns ($(if($Autoruns){@($Autoruns).Count}else{0}))</summary>
     $(@($Autoruns) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -747,7 +747,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($downloads -and @($downloads).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Downloads Folder ($(@($downloads).Count) files)</summary>
+    <summary>Downloads Folder ($(if($downloads){@($downloads).Count}else{0}) files)</summary>
     $(@($downloads) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -756,7 +756,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($WmiPersistence -and @($WmiPersistence).Count -gt 0) {
             $html += @"
 <details>
-    <summary>WMI Persistence ($(@($WmiPersistence).Count))</summary>
+    <summary>WMI Persistence ($(if($WmiPersistence){@($WmiPersistence).Count}else{0}))</summary>
     $(@($WmiPersistence) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -765,7 +765,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($browserCopies -and @($browserCopies).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Browser Artifacts Copy Status ($(@($browserCopies).Count))</summary>
+    <summary>Browser Artifacts Copy Status ($(if($browserCopies){@($browserCopies).Count}else{0}))</summary>
     $(@($browserCopies) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -776,7 +776,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($ZoneIdentifiers -and @($ZoneIdentifiers).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Download Origins / Zone.Identifier ($(@($ZoneIdentifiers).Count) files)</summary>
+    <summary>Download Origins / Zone.Identifier ($(if($ZoneIdentifiers){@($ZoneIdentifiers).Count}else{0}) files)</summary>
     <p><em>Shows where files were downloaded from (HostUrl) and the referring page. Zone 3 = Internet.</em></p>
     $(@($ZoneIdentifiers) | ConvertTo-Html -Fragment)
 </details>
@@ -786,7 +786,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($AlternateDataStreams -and @($AlternateDataStreams).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Alternate Data Streams ($(@($AlternateDataStreams).Count) - SUSPICIOUS)</summary>
+    <summary>Alternate Data Streams ($(if($AlternateDataStreams){@($AlternateDataStreams).Count}else{0}) - SUSPICIOUS)</summary>
     <p><em>NTFS Alternate Data Streams can hide data inside normal files without changing their visible size. Any entries here warrant further examination.</em></p>
     $(@($AlternateDataStreams) | ConvertTo-Html -Fragment)
 </details>
@@ -796,7 +796,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($HiddenFiles -and @($HiddenFiles).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Hidden &amp; System Files ($(@($HiddenFiles).Count))</summary>
+    <summary>Hidden &amp; System Files ($(if($HiddenFiles){@($HiddenFiles).Count}else{0}))</summary>
     <p><em>Files with Hidden or System attributes set in user-writable directories.</em></p>
     $(@($HiddenFiles) | ConvertTo-Html -Fragment)
 </details>
@@ -806,7 +806,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($EncryptedVolumes -and @($EncryptedVolumes).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Encrypted Volumes &amp; Containers ($(@($EncryptedVolumes).Count))</summary>
+    <summary>Encrypted Volumes &amp; Containers ($(if($EncryptedVolumes){@($EncryptedVolumes).Count}else{0}))</summary>
     <p><em>BitLocker volumes, VeraCrypt / TrueCrypt containers, and related running processes.</em></p>
     $(@($EncryptedVolumes) | ConvertTo-Html -Fragment)
 </details>
@@ -816,7 +816,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($USBDevices -and @($USBDevices).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>USB Device History ($(@($USBDevices).Count))</summary>
+    <summary>USB Device History ($(if($USBDevices){@($USBDevices).Count}else{0}))</summary>
     <p><em>USB storage devices previously connected. May indicate data exfiltration.</em></p>
     $(@($USBDevices) | ConvertTo-Html -Fragment)
 </details>
@@ -826,7 +826,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($RecycleBin -and @($RecycleBin).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Recycle Bin ($(@($RecycleBin).Count) items)</summary>
+    <summary>Recycle Bin ($(if($RecycleBin){@($RecycleBin).Count}else{0}) items)</summary>
     <p><em>Deleted files may contain evidence the suspect tried to destroy.</em></p>
     $(@($RecycleBin) | ConvertTo-Html -Fragment)
 </details>
@@ -836,7 +836,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($RecentActivity -and @($RecentActivity).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Recent File Activity / MRU ($(@($RecentActivity).Count))</summary>
+    <summary>Recent File Activity / MRU ($(if($RecentActivity){@($RecentActivity).Count}else{0}))</summary>
     <p><em>Recent documents opened, paths typed in Explorer, and Run dialog history.</em></p>
     $(@($RecentActivity) | ConvertTo-Html -Fragment)
 </details>
@@ -846,7 +846,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($DNSCache -and @($DNSCache).Count -gt 0) {
             $html += @"
 <details>
-    <summary>DNS Cache ($(@($DNSCache).Count) entries)</summary>
+    <summary>DNS Cache ($(if($DNSCache){@($DNSCache).Count}else{0}) entries)</summary>
     <p><em>Recently resolved domain names (volatile - lost on reboot).</em></p>
     $(@($DNSCache) | ConvertTo-Html -Fragment)
 </details>
@@ -867,7 +867,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($MappedDrives -and @($MappedDrives).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Mapped Drives &amp; Network Shares ($(@($MappedDrives).Count))</summary>
+    <summary>Mapped Drives &amp; Network Shares ($(if($MappedDrives){@($MappedDrives).Count}else{0}))</summary>
     <p><em>Network-mapped drives, SMB shares hosted, and active inbound sessions.</em></p>
     $(@($MappedDrives) | ConvertTo-Html -Fragment)
 </details>
@@ -877,7 +877,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($PSHistory -and @($PSHistory).Count -gt 0) {
             $html += @"
 <details>
-    <summary>PowerShell Command History ($(@($PSHistory).Count) commands)</summary>
+    <summary>PowerShell Command History ($(if($PSHistory){@($PSHistory).Count}else{0}) commands)</summary>
     <p><em>Commands previously executed in PowerShell by each user (PSReadLine history).</em></p>
     $(@($PSHistory) | ConvertTo-Html -Fragment)
 </details>
@@ -887,7 +887,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($RDPSessions -and @($RDPSessions).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>RDP &amp; Remote Sessions ($(@($RDPSessions).Count))</summary>
+    <summary>RDP &amp; Remote Sessions ($(if($RDPSessions){@($RDPSessions).Count}else{0}))</summary>
     <p><em>Remote Desktop connections (outgoing history, cache files, active sessions). Critical for linking two VMs.</em></p>
     $(@($RDPSessions) | ConvertTo-Html -Fragment)
 </details>
@@ -898,7 +898,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($MemoryStrings) { $MemoryStrings = @($MemoryStrings | Where-Object { $_.Source } | Select-Object Source, Plugin, Detail, File) }
             $html += @"
 <details open>
-    <summary>Memory Analysis — Volatility &amp; Strings ($(@($MemoryStrings).Count) IOC categories)</summary>
+    <summary>Memory Analysis — Volatility &amp; Strings ($(if($MemoryStrings){@($MemoryStrings).Count}else{0}) IOC categories)</summary>
     <p><em>Automated memory analysis results. Volatility 3 plugin output and strings extraction for emails, IPs, URLs, UNC paths, bitcoin addresses, and password references. Full output files are in the <code>memory_analysis</code> subfolder.</em></p>
     $(@($MemoryStrings) | ConvertTo-Html -Fragment)
 </details>
@@ -910,7 +910,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($ShadowCopies -and @($ShadowCopies).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Volume Shadow Copies ($(@($ShadowCopies).Count))</summary>
+    <summary>Volume Shadow Copies ($(if($ShadowCopies){@($ShadowCopies).Count}else{0}))</summary>
     <p><em>Shadow copies can contain older versions of files the suspect may have deleted or modified. Absence of expected shadow copies may indicate vssadmin delete shadows was used.</em></p>
     $(@($ShadowCopies) | ConvertTo-Html -Fragment)
 </details>
@@ -927,7 +927,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($TimestompedFiles -and @($TimestompedFiles).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Timestomp Detection ($(@($TimestompedFiles).Count) anomalies)</summary>
+    <summary>Timestomp Detection ($(if($TimestompedFiles){@($TimestompedFiles).Count}else{0}) anomalies)</summary>
     <p><em>Files where the Creation timestamp is LATER than the Modified timestamp. This is impossible under normal use and is a strong indicator of timestamp manipulation (anti-forensic technique).</em></p>
     $(@($TimestompedFiles) | ConvertTo-Html -Fragment)
 </details>
@@ -937,7 +937,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($UserAssist -and @($UserAssist).Count -gt 0) {
             $html += @"
 <details>
-    <summary>UserAssist Program Execution ($(@($UserAssist).Count))</summary>
+    <summary>UserAssist Program Execution ($(if($UserAssist){@($UserAssist).Count}else{0}))</summary>
     <p><em>Windows tracks GUI program launches in the UserAssist registry key (ROT13 encoded). Shows what applications the suspect ran and how many times.</em></p>
     $(@($UserAssist) | ConvertTo-Html -Fragment)
 </details>
@@ -947,7 +947,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($HostsFileEntries -and @($HostsFileEntries).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Hosts File Analysis ($(@($HostsFileEntries).Count) entries)</summary>
+    <summary>Hosts File Analysis ($(if($HostsFileEntries){@($HostsFileEntries).Count}else{0}) entries)</summary>
     <p><em>The hosts file can redirect domain names to different IPs. Attackers modify it to block security updates, redirect banking sites, or hide C2 traffic.</em></p>
     $(@($HostsFileEntries) | ConvertTo-Html -Fragment)
 </details>
@@ -957,7 +957,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($FirewallRules -and @($FirewallRules).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Custom Firewall Rules ($(@($FirewallRules).Count))</summary>
+    <summary>Custom Firewall Rules ($(if($FirewallRules){@($FirewallRules).Count}else{0}))</summary>
     <p><em>Firewall rules that allow inbound connections or were recently created. Attackers may add rules to permit reverse shells or C2 channels.</em></p>
     $(@($FirewallRules) | ConvertTo-Html -Fragment)
 </details>
@@ -967,7 +967,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($DefenderExclusions -and @($DefenderExclusions).Count -gt 0) {
             $html += @"
 <details open>
-    <summary>Windows Defender Exclusions ($(@($DefenderExclusions).Count) - SUSPICIOUS)</summary>
+    <summary>Windows Defender Exclusions ($(if($DefenderExclusions){@($DefenderExclusions).Count}else{0}) - SUSPICIOUS)</summary>
     <p><em>Defender exclusions prevent scanning of specified paths, processes, or extensions. Attackers add exclusions to hide malware from detection.</em></p>
     $(@($DefenderExclusions) | ConvertTo-Html -Fragment)
 </details>
@@ -978,7 +978,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($WiFiProfiles -and @($WiFiProfiles).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Saved WiFi Profiles ($(@($WiFiProfiles).Count))</summary>
+    <summary>Saved WiFi Profiles ($(if($WiFiProfiles){@($WiFiProfiles).Count}else{0}))</summary>
     <p><em>All wireless networks the device has connected to. Reveals locations visited, personal hotspots used, and network history.</em></p>
     $(@($WiFiProfiles) | ConvertTo-Html -Fragment)
 </details>
@@ -988,7 +988,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($WallpaperInfo -and @($WallpaperInfo).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Desktop Wallpaper &amp; Theme ($(@($WallpaperInfo).Count))</summary>
+    <summary>Desktop Wallpaper &amp; Theme ($(if($WallpaperInfo){@($WallpaperInfo).Count}else{0}))</summary>
     <p><em>Current and cached desktop wallpaper information. Can reveal personal interests or inappropriate imagery.</em></p>
     $(@($WallpaperInfo) | ConvertTo-Html -Fragment)
 </details>
@@ -998,7 +998,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($BrowserBookmarks -and @($BrowserBookmarks).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Browser Bookmarks ($(@($BrowserBookmarks).Count))</summary>
+    <summary>Browser Bookmarks ($(if($BrowserBookmarks){@($BrowserBookmarks).Count}else{0}))</summary>
     <p><em>Saved bookmarks from Chrome and Edge browsers. Shows intentionally saved pages - stronger indicator of interest than browsing history.</em></p>
     $(@($BrowserBookmarks) | ConvertTo-Html -Fragment)
 </details>
@@ -1008,7 +1008,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($BrowserSearchHistory -and @($BrowserSearchHistory).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Browser Search History ($(@($BrowserSearchHistory).Count) queries)</summary>
+    <summary>Browser Search History ($(if($BrowserSearchHistory){@($BrowserSearchHistory).Count}else{0}) queries)</summary>
     <p><em>Google and Bing search queries extracted from browser URL history. Reveals the user's intentions, interests, and investigative behaviour.</em></p>
     $(@($BrowserSearchHistory) | ConvertTo-Html -Fragment)
 </details>
@@ -1018,7 +1018,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($WindowsTimeline -and @($WindowsTimeline).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Windows Activity Timeline ($(@($WindowsTimeline).Count))</summary>
+    <summary>Windows Activity Timeline ($(if($WindowsTimeline){@($WindowsTimeline).Count}else{0}))</summary>
     <p><em>Windows Activity History from ActivitiesCache.db. Tracks which applications were used and when, including focus time.</em></p>
     $(@($WindowsTimeline) | ConvertTo-Html -Fragment)
 </details>
@@ -1028,7 +1028,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($GameArtifacts -and @($GameArtifacts).Count -gt 0) {
             $html += @"
 <details>
-    <summary>Game &amp; Entertainment Artifacts ($(@($GameArtifacts).Count))</summary>
+    <summary>Game &amp; Entertainment Artifacts ($(if($GameArtifacts){@($GameArtifacts).Count}else{0}))</summary>
     <p><em>Evidence of gaming activity from Steam, Rimworld, Minecraft, and other sources. Shows entertainment habits and time usage.</em></p>
     $(@($GameArtifacts) | ConvertTo-Html -Fragment)
 </details>
@@ -1082,7 +1082,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($LnkFiles) { $LnkFiles = @($LnkFiles | Where-Object { $_.LnkName } | Select-Object User, Type, LnkName, TargetPath, LnkCreated, LnkModified) }
             $html += @"
 <details>
-    <summary>LNK Files &amp; Jump Lists ($(@($LnkFiles).Count) metadata entries) (Priority 7)</summary>
+    <summary>LNK Files &amp; Jump Lists ($(if($LnkFiles){@($LnkFiles).Count}else{0}) metadata entries) (Priority 7)</summary>
     <p><em>LNK shortcut files are created automatically when files are opened. They contain the original file path, MAC timestamps, and volume serial number — even if the original file no longer exists. Jump Lists extend this with per-application MRU lists.</em></p>
     <p><strong>Parse with:</strong> LECmd.exe and JLECmd.exe (Eric Zimmermann)</p>
     $(@($LnkFiles) | ConvertTo-Html -Fragment)
@@ -1111,7 +1111,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             $mftTableHtml = if ($mftFiles) { $mftFiles | ConvertTo-Html -Fragment } else { "<p>No files found in evidence folder.</p>" }
             $html += @"
 <details>
-    <summary>MFT, `$LogFile &amp; USN Journal ($(@($mftFiles).Count) files) (Priority 7)</summary>
+    <summary>MFT, `$LogFile &amp; USN Journal ($(if($mftFiles){@($mftFiles).Count}else{0}) files) (Priority 7)</summary>
     <p><em>The Master File Table (`$MFT) indexes every file on an NTFS volume &mdash; deleted entries persist until overwritten.
     The `$LogFile is the NTFS transaction log recording all metadata changes. The USN Change Journal records every file system operation (create, modify, rename, delete).</em></p>
     <p><strong>Collected to:</strong> $MFTUsn</p>
@@ -1132,7 +1132,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($EmailArtefacts) { $EmailArtefacts = @($EmailArtefacts | Where-Object { $_.FileName } | Select-Object User, Type, FileName, SourcePath, SizeMB, Modified, CopyStatus) }
             $html += @"
 <details open>
-    <summary>Email Artefacts ($(@($EmailArtefacts).Count) items) (Priority 8)</summary>
+    <summary>Email Artefacts ($(if($EmailArtefacts){@($EmailArtefacts).Count}else{0}) items) (Priority 8)</summary>
     <p><em>Outlook PST/OST files, Thunderbird mbox folders, and Windows Mail data. PST/OST files contain the full mailbox including deleted items. Email headers contain IP addresses and timestamps for attribution.</em></p>
     <p><strong>Analysis tips:</strong></p>
     <ul>
@@ -1150,7 +1150,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($MemoryFiles) { $MemoryFiles = @($MemoryFiles | Where-Object { $_.File } | Select-Object File, SizeMB, Status, Description, Method) }
             $html += @"
 <details open>
-    <summary>Memory Files — Pagefile / Hiberfil ($(@($MemoryFiles).Count) targets) (Priority 8)</summary>
+    <summary>Memory Files — Pagefile / Hiberfil ($(if($MemoryFiles){@($MemoryFiles).Count}else{0}) targets) (Priority 8)</summary>
     <p><em>pagefile.sys contains RAM fragments (passwords, documents, network data). hiberfil.sys is a full RAM snapshot from hibernation — parse with Volatility as a memory image. swapfile.sys contains UWP app swap data.</em></p>
     <p><strong>Analysis tips:</strong></p>
     <ul>
@@ -1166,7 +1166,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
         if ($FileHashes -and @($FileHashes).Count -gt 0) {
             $html += @"
 <details>
-    <summary>File Hashes ($(@($FileHashes).Count) files)</summary>
+    <summary>File Hashes ($(if($FileHashes){@($FileHashes).Count}else{0}) files)</summary>
     $(@($FileHashes) | ConvertTo-Html -Fragment)
 </details>
 "@
@@ -1479,8 +1479,8 @@ function Get-AlternateDataStreams {
         "$env:USERPROFILE\Desktop",
         "$env:USERPROFILE\Documents",
         "$env:USERPROFILE\Downloads",
-        "C:\Temp",
-        "C:\Users\Public"
+        "$env:SystemDrive\Temp",
+        "$env:SystemDrive\Users\Public"
     )
 
     foreach ($dir in $scanPaths) {
@@ -1539,8 +1539,8 @@ function Get-HiddenFiles {
         "$env:USERPROFILE\Desktop",
         "$env:USERPROFILE\Documents",
         "$env:USERPROFILE\Downloads",
-        "C:\Temp",
-        "C:\Users\Public"
+        "$env:SystemDrive\Temp",
+        "$env:SystemDrive\Users\Public"
     )
 
     foreach ($dir in $scanPaths) {
@@ -1609,7 +1609,7 @@ function Get-EncryptedVolumeDetection {
 
     # Look for VeraCrypt / TrueCrypt containers by extension or known process
     $containerExts = @('*.hc', '*.tc', '*.vhd', '*.vhdx', '*.img')
-    $searchDirs = @("$env:USERPROFILE", "C:\Users\Public", "C:\Temp")
+    $searchDirs = @("$env:USERPROFILE", "$env:SystemDrive\Users\Public", "$env:SystemDrive\Temp")
     foreach ($dir in $searchDirs) {
         if (-not (Test-Path $dir)) { continue }
         foreach ($ext in $containerExts) {
@@ -1663,8 +1663,8 @@ function Get-ZoneIdentifierInfo {
         "$env:USERPROFILE\Downloads",
         "$env:USERPROFILE\Desktop",
         "$env:USERPROFILE\Documents",
-        "C:\Temp",
-        "C:\Users\Public\Downloads"
+        "$env:SystemDrive\Temp",
+        "$env:SystemDrive\Users\Public\Downloads"
     )
 
     foreach ($dir in $scanPaths) {
@@ -1849,7 +1849,7 @@ function Get-USBDeviceHistory {
                 LastSeen     = "(currently mounted)"
             }
         }
-    } catch { }
+    } catch { Write-Host "WARNING: Removable drive enumeration failed - $_" }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\usb_device_history.csv" -NoTypeInformation -Encoding UTF8
@@ -1909,8 +1909,8 @@ function Get-RecycleBinContents {
     $totalSize = 0
 
     try {
-        # All users' recycle bins live under C:\`$Recycle.Bin\<SID>\
-        $recyclePaths = Get-ChildItem 'C:\$Recycle.Bin' -Directory -Force -ErrorAction SilentlyContinue
+        # All users' recycle bins live under <SystemDrive>\$Recycle.Bin\<SID>\
+        $recyclePaths = Get-ChildItem "$env:SystemDrive\`$Recycle.Bin" -Directory -Force -ErrorAction SilentlyContinue
         foreach ($sidDir in $recyclePaths) {
             $sidName = $sidDir.Name
             $destSidDir = Join-Path $rbDir $sidName
@@ -1944,6 +1944,18 @@ function Get-RecycleBinContents {
         Write-Host "  Copied $copied recycle bin files ($sizeMB MB) -> $rbDir"
         Write-Host "  \$I files = metadata (original path + delete time)"
         Write-Host "  \$R files = actual deleted file content"
+
+        # If COM enumeration returned nothing but files were copied, add a
+        # summary row so the caller sees a non-empty result.
+        if ($items.Count -eq 0) {
+            $items += [pscustomobject]@{
+                Name         = "(Raw file copy - COM enumeration unavailable)"
+                OriginalPath = $rbDir
+                Size         = $totalSize
+                Type         = 'RecycleBin files'
+                DateDeleted  = ''
+            }
+        }
     } else {
         Write-Host "  (No recycle bin files to copy)"
     }
@@ -2027,7 +2039,7 @@ function Get-MappedDrivesAndShares {
                     FreeGB     = [math]::Round(($_.Free / 1GB), 2)
                 }
             }
-    } catch { }
+    } catch { Write-Host "WARNING: Mapped drive enumeration failed - $_" }
 
     # SMB shares hosted on this machine
     try {
@@ -2040,7 +2052,7 @@ function Get-MappedDrivesAndShares {
                 FreeGB     = $null
             }
         }
-    } catch { }
+    } catch { Write-Host "WARNING: SMB share enumeration failed (may not be available on Home editions) - $_" }
 
     # Active SMB sessions (who is connected TO us)
     try {
@@ -2053,7 +2065,7 @@ function Get-MappedDrivesAndShares {
                 FreeGB     = $null
             }
         }
-    } catch { }
+    } catch { Write-Host "WARNING: SMB session enumeration failed - $_" }
 
     if ($items.Count -gt 0) {
         $items | Export-Csv "$OutputPath\mapped_drives_shares.csv" -NoTypeInformation -Encoding UTF8
@@ -2080,7 +2092,7 @@ function Get-PowerShellHistory {
     $items = @()
 
     # PSReadLine history for each user profile
-    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    $profiles = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue
     foreach ($prof in $profiles) {
         $histPath = Join-Path $prof.FullName 'AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt'
         if (Test-Path $histPath) {
@@ -2176,7 +2188,7 @@ function Get-RDPAndRemoteSessions {
                 }
             }
         }
-    } catch { }
+    } catch { Write-Host "WARNING: Logon session enumeration failed - $_" }
 
     # RDP bitmap cache files (evidence of remote desktop activity)
     $rdpCacheDirs = @(
@@ -2604,8 +2616,8 @@ function Get-TimestompDetection {
         "$env:USERPROFILE\Documents",
         "$env:USERPROFILE\Downloads",
         "$env:USERPROFILE\AppData\Roaming",
-        "C:\Temp",
-        "C:\Users\Public"
+        "$env:SystemDrive\Temp",
+        "$env:SystemDrive\Users\Public"
     )
 
     foreach ($dir in $scanPaths) {
@@ -3100,7 +3112,7 @@ results = [{'name': r[0] or '(untitled)', 'url': r[1], 'folder': r[3] or 'root'}
 conn.close()
 print(json.dumps(results))
 "@
-                        $pyResult = & $pythonPath -c $pyScript 2>$null
+                        $pyResult = $pyScript | & $pythonPath - 2>$null
                         if ($pyResult) {
                             $ffBookmarks = $pyResult | ConvertFrom-Json
                             foreach ($bm in $ffBookmarks) {
@@ -3161,11 +3173,12 @@ function Get-BrowserSearchHistory {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Extracting Browser Search Queries ==="
     $items = @()
 
-    # Look for copied browser SQLite databases
+    # Look for copied browser SQLite databases (Chrome/Edge only — Firefox is handled separately below)
     $browserDir = "$OutputPath\browser_artifacts"
     $dbFiles = @()
     if (Test-Path $browserDir) {
-        $dbFiles = Get-ChildItem $browserDir -Filter "*-History.sqlite" -ErrorAction SilentlyContinue
+        $dbFiles = Get-ChildItem $browserDir -Filter "*-History.sqlite" -ErrorAction SilentlyContinue |
+                   Where-Object { $_.Name -notlike 'Firefox-*' }
     }
 
     if ($dbFiles.Count -eq 0) {
@@ -3271,7 +3284,7 @@ for url, lvd in cur.fetchall():
 conn.close()
 print(json.dumps(results))
 "@
-                        $pyResult = & $pythonPath -c $pyScript 2>$null
+                        $pyResult = $pyScript | & $pythonPath - 2>$null
                         if ($pyResult) {
                             $ffSearches = $pyResult | ConvertFrom-Json
                             foreach ($s in $ffSearches) {
@@ -3457,7 +3470,7 @@ function Get-GameArtifacts {
                 }
             }
         }
-    } catch {}
+    } catch { Write-Host "WARNING: Steam artifact collection failed - $_" }
 
     # Rimworld
     $rimworldPath = "$env:USERPROFILE\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios"

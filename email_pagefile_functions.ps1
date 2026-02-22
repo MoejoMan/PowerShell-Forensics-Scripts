@@ -33,7 +33,7 @@ function Get-EmailArtefacts {
     New-Item -ItemType Directory -Path $emailDir -Force | Out-Null
 
     $items = @()
-    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    $profiles = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue
 
     foreach ($prof in $profiles) {
 
@@ -265,9 +265,9 @@ function Get-PagefileAndHiberfil {
     New-Item -ItemType Directory -Path $memFileDir -Force | Out-Null
 
     $targets = @(
-        @{ Name = 'pagefile.sys';  Path = 'C:\pagefile.sys';  Description = 'Virtual memory - may contain RAM fragments, passwords, document content' },
-        @{ Name = 'hiberfil.sys';  Path = 'C:\hiberfil.sys';  Description = 'Hibernation image - full RAM snapshot, parse with Volatility' },
-        @{ Name = 'swapfile.sys';  Path = 'C:\swapfile.sys';  Description = 'UWP app swap file' }
+        @{ Name = 'pagefile.sys';  Path = "$env:SystemDrive\pagefile.sys";  Description = 'Virtual memory - may contain RAM fragments, passwords, document content' },
+        @{ Name = 'hiberfil.sys';  Path = "$env:SystemDrive\hiberfil.sys";  Description = 'Hibernation image - full RAM snapshot, parse with Volatility' },
+        @{ Name = 'swapfile.sys';  Path = "$env:SystemDrive\swapfile.sys";  Description = 'UWP app swap file' }
     )
 
     $results = @()
@@ -319,7 +319,7 @@ function Get-PagefileAndHiberfil {
         if (-not $copied) {
             try {
                 Write-Host "    Trying robocopy /B (backup mode)..."
-                $roboArgs = "C:\ `"$memFileDir`" $($target.Name) /B /J /NP /NFL /NDL /R:1 /W:1"
+                $roboArgs = "$env:SystemDrive\ `"$memFileDir`" $($target.Name) /B /J /NP /NFL /NDL /R:1 /W:1"
                 $roboProc = Start-Process robocopy -ArgumentList $roboArgs -Wait -PassThru -NoNewWindow
                 # robocopy exit codes 0-7 are success/partial success
                 if ($roboProc.ExitCode -le 7 -and (Test-Path $dest)) {
@@ -354,30 +354,7 @@ function Get-PagefileAndHiberfil {
             }
         }
 
-        # â”€â”€ Strategy 4: FTK Imager CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (-not $copied) {
-            $ftkPaths = @(
-                (Join-Path $ScriptRoot "bin\FTKImager\ftkimager.exe"),
-                (Join-Path $ScriptRoot "bin\ftkimager.exe"),
-                (Join-Path $ScriptRoot "SimpleImager-main\ftkimager.exe")
-            )
-            $ftk = $ftkPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-            if ($ftk) {
-                Write-Host "    Trying FTK Imager..."
-                try {
-                    $ftkArgs = "`"$src`" `"$dest`""
-                    $ftkProc = Start-Process $ftk -ArgumentList $ftkArgs -Wait -PassThru -NoNewWindow
-                    if ($ftkProc.ExitCode -eq 0 -and (Test-Path $dest)) {
-                        $copied = $true
-                        $method = 'FTK Imager'
-                        Write-Host "    Success via FTK Imager"
-                    }
-                } catch {
-                    Write-Host "    FTK Imager failed - $_"
-                }
-            }
-        }
+        # (FTK Imager CLI strategy removed - ftkimager.exe is a disk imaging tool, not a file copier)
 
         # â”€â”€ Result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (-not $copied) {

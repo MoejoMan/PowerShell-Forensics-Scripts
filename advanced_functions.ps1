@@ -56,7 +56,7 @@ function Get-RegistryHives {
     }
 
     # Per-user hives (NTUSER.DAT and UsrClass.dat for each profile)
-    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    $profiles = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue
     foreach ($prof in $profiles) {
         # NTUSER.DAT
         $ntuserSrc = Join-Path $prof.FullName "NTUSER.DAT"
@@ -122,7 +122,7 @@ function Get-SRUMDatabase {
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting SRUM Database ==="
 
-    $srumSrc = "C:\Windows\System32\sru\SRUDB.dat"
+    $srumSrc = "$env:SystemRoot\System32\sru\SRUDB.dat"
     $srumDst = Join-Path $OutputPath "SRUDB.dat"
 
     if (-not (Test-Path $srumSrc)) {
@@ -198,7 +198,7 @@ function Get-AmcacheAndShimcache {
     $amcacheDir = Join-Path $OutputPath "amcache"
     New-Item -ItemType Directory -Path $amcacheDir -Force | Out-Null
 
-    $amcacheSrc = "C:\Windows\AppCompat\Programs\Amcache.hve"
+    $amcacheSrc = "$env:SystemRoot\AppCompat\Programs\Amcache.hve"
     $amcacheDst = Join-Path $amcacheDir "Amcache.hve"
 
     if (Test-Path $amcacheSrc) {
@@ -291,7 +291,7 @@ function Get-LnkAndJumpLists {
     New-Item -ItemType Directory -Path $lnkDir -Force | Out-Null
 
     $items = @()
-    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    $profiles = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue
 
     foreach ($prof in $profiles) {
 
@@ -317,7 +317,9 @@ function Get-LnkAndJumpLists {
                             LnkModified  = $f.LastWriteTime
                             Arguments    = $shortcut.Arguments
                         }
-                    } catch { }
+                    } catch {
+                        Write-Host "    WARNING: Failed to parse LNK $($f.Name) - $_"
+                    }
                 }
                 Write-Host "  Copied $($lnkFiles.Count) LNK files for $($prof.Name)"
             }
@@ -332,7 +334,9 @@ function Get-LnkAndJumpLists {
                     $destDir = Join-Path $lnkDir "$($prof.Name)_$jlFolder"
                     New-Item -ItemType Directory -Path $destDir -Force | Out-Null
                     $jlFiles | ForEach-Object {
-                        try { Copy-Item $_.FullName $destDir -Force -ErrorAction SilentlyContinue } catch { }
+                        try { Copy-Item $_.FullName $destDir -Force -ErrorAction SilentlyContinue } catch {
+                            Write-Host "    WARNING: Jump list copy failed for $($_.Name) - $_"
+                        }
                     }
                     Write-Host "  Copied $($jlFiles.Count) $jlFolder files for $($prof.Name)"
                 }
@@ -343,6 +347,20 @@ function Get-LnkAndJumpLists {
     if ($items.Count -gt 0) {
         $items | Export-Csv (Join-Path $OutputPath "lnk_metadata.csv") -NoTypeInformation -Encoding UTF8
         Write-Host "  LNK metadata CSV: $($items.Count) entries -> $OutputPath\lnk_metadata.csv"
+    } else {
+        # Even if COM parsing returned nothing, raw LNK files may have been copied
+        $copiedCount = (Get-ChildItem $lnkDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+        if ($copiedCount -gt 0) {
+            $items += [pscustomobject]@{
+                User       = '(all)'
+                Type       = 'RawCopy'
+                LnkName    = "(COM parsing unavailable - $copiedCount raw files copied)"
+                TargetPath = $lnkDir
+                LnkCreated = ''
+                LnkModified = ''
+                Arguments  = ''
+            }
+        }
     }
 
     Write-Host "  Raw LNK/JumpList files saved to: $lnkDir"
@@ -372,7 +390,7 @@ function Get-ThumbnailCache {
     $thumbDir = Join-Path $OutputPath "thumbnail_cache"
     New-Item -ItemType Directory -Path $thumbDir -Force | Out-Null
 
-    $profiles = Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue
+    $profiles = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue
     $copied = 0
 
     foreach ($prof in $profiles) {
@@ -465,7 +483,7 @@ function Get-MFTAndUsnJournal {
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $mftDest = Join-Path $mftDir "`$MFT"
-            Copy-ForensicFile -Path "C:\`$MFT" -Destination $mftDest -ErrorAction Stop
+            Copy-ForensicFile -Path "$env:SystemDrive\`$MFT" -Destination $mftDest -ErrorAction Stop
             if (Test-Path $mftDest) {
                 $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
                 Write-Host "  `$MFT extracted via PowerForensics ($sizeMB MB) -> $mftDest"
@@ -481,7 +499,7 @@ function Get-MFTAndUsnJournal {
         try {
             $mftCsvOut = Join-Path $mftDir "mft_parsed"
             New-Item -ItemType Directory -Path $mftCsvOut -Force | Out-Null
-            & $mftEcmd -f C:\`$MFT --csv $mftCsvOut 2>&1 | ForEach-Object { Write-Host "  $_" }
+            & $mftEcmd -f "$env:SystemDrive\`$MFT" --csv $mftCsvOut 2>&1 | ForEach-Object { Write-Host "  $_" }
             Write-Host "  `$MFT parsed -> $mftCsvOut"
             $mftExtracted = $true
         } catch {
@@ -494,7 +512,7 @@ function Get-MFTAndUsnJournal {
         Write-Host "  No external tools found. Trying esentutl.exe /y /vss (built-in Windows)..."
         try {
             $mftDest = Join-Path $mftDir "`$MFT"
-            $esentResult = & esentutl.exe /y /vss "C:\`$MFT" /d $mftDest 2>&1
+            $esentResult = & esentutl.exe /y /vss "$env:SystemDrive\`$MFT" /d $mftDest 2>&1
             if ($LASTEXITCODE -eq 0 -and (Test-Path $mftDest)) {
                 $sizeMB = [math]::Round((Get-Item $mftDest).Length / 1MB, 1)
                 Write-Host "  `$MFT extracted via esentutl ($sizeMB MB) -> $mftDest"
@@ -523,7 +541,7 @@ function Get-MFTAndUsnJournal {
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $logDest = Join-Path $mftDir "`$LogFile"
-            Copy-ForensicFile -Path "C:\`$LogFile" -Destination $logDest -ErrorAction Stop
+            Copy-ForensicFile -Path "$env:SystemDrive\`$LogFile" -Destination $logDest -ErrorAction Stop
             if (Test-Path $logDest) {
                 $sizeMB = [math]::Round((Get-Item $logDest).Length / 1MB, 1)
                 Write-Host "  `$LogFile extracted via PowerForensics ($sizeMB MB) -> $logDest"
@@ -538,7 +556,7 @@ function Get-MFTAndUsnJournal {
     if (-not $logFileExtracted) {
         try {
             $logDest = Join-Path $mftDir "`$LogFile"
-            $esentLog = & esentutl.exe /y /vss "C:\`$LogFile" /d $logDest 2>&1
+            $esentLog = & esentutl.exe /y /vss "$env:SystemDrive\`$LogFile" /d $logDest 2>&1
             if ($LASTEXITCODE -eq 0 -and (Test-Path $logDest)) {
                 $sizeMB = [math]::Round((Get-Item $logDest).Length / 1MB, 1)
                 Write-Host "  `$LogFile extracted via esentutl ($sizeMB MB) -> $logDest"
@@ -566,7 +584,7 @@ function Get-MFTAndUsnJournal {
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $usnDest = Join-Path $mftDir "`$J"
-            Copy-ForensicFile -Path "C:\`$Extend\`$UsnJrnl" -Destination $usnDest -ErrorAction Stop
+            Copy-ForensicFile -Path "$env:SystemDrive\`$Extend\`$UsnJrnl" -Destination $usnDest -ErrorAction Stop
             if (Test-Path $usnDest) {
                 $sizeMB = [math]::Round((Get-Item $usnDest).Length / 1MB, 1)
                 Write-Host "  `$UsnJrnl:`$J extracted via PowerForensics ($sizeMB MB) -> $usnDest"
@@ -581,7 +599,7 @@ function Get-MFTAndUsnJournal {
     if (-not $usnExtracted) {
         try {
             $usnDest = Join-Path $mftDir "`$J"
-            $esentUsn = & esentutl.exe /y /vss "C:\`$Extend\`$UsnJrnl:`$J" /d $usnDest 2>&1
+            $esentUsn = & esentutl.exe /y /vss "$env:SystemDrive\`$Extend\`$UsnJrnl:`$J" /d $usnDest 2>&1
             if ($LASTEXITCODE -eq 0 -and (Test-Path $usnDest)) {
                 $sizeMB = [math]::Round((Get-Item $usnDest).Length / 1MB, 1)
                 Write-Host "  `$UsnJrnl:`$J extracted via esentutl ($sizeMB MB) -> $usnDest"
@@ -729,7 +747,7 @@ function Get-SleepingVMArtefacts {
         [string]$OutputPath,
         [string]$ScriptRoot   = $PSScriptRoot,
         [string]$VmLabel      = "VM2_Sleeping",
-        [string]$VmSearchPath = "C:\",         # where to look for VMDK/VHD files
+        [string]$VmSearchPath = "$env:SystemDrive\",         # where to look for VMDK/VHD files
         [string]$VmdkPath     = ""             # if you already know the VMDK path, set this
     )
 
