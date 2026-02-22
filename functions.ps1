@@ -408,7 +408,12 @@ function New-HTMLReport {
         [object]$MFTUsn,
         # --- Priority 8: Email & Memory Files ---
         [object]$EmailArtefacts,
-        [object]$MemoryFiles
+        [object]$EmlMsgFiles,
+        [object]$MemoryFiles,
+        # --- Priority 9: Investigation Scans ---
+        [object]$ExtortionIndicators,
+        # --- Case metadata ---
+        [string]$VmLabel = ""
     )
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Generating HTML Report ==="
     
@@ -454,6 +459,8 @@ function New-HTMLReport {
         if ($BrowserSearchHistory) { $BrowserSearchHistory = @($BrowserSearchHistory | Where-Object { $_.Query } | Select-Object Timestamp, Engine, Query) }
         if ($WindowsTimeline) { $WindowsTimeline = @($WindowsTimeline | Where-Object { $_.Application } | Select-Object Timestamp, Application, DisplayText, ActivityType) }
         if ($GameArtifacts) { $GameArtifacts = @($GameArtifacts | Where-Object { $_.Source } | Select-Object Source, Name, Detail, LastModified) }
+        if ($EmlMsgFiles) { $EmlMsgFiles = @($EmlMsgFiles | Where-Object { $_.FileName } | Select-Object FileName, Extension, SourcePath, SizeMB, Modified, Created, Subject, CopyStatus) }
+        if ($ExtortionIndicators) { $ExtortionIndicators = @($ExtortionIndicators | Where-Object { $_.Type } | Select-Object Type, FilePath, FileName, SizeKB, Modified, MatchedOn, Preview) }
 
         $downloads = $null
         $browserCopies = $null
@@ -505,6 +512,16 @@ function New-HTMLReport {
         .card h4 { margin: 0 0 6px 0; color: #2c3e50; font-size: 14px; }
         .card p { margin: 0; font-size: 13px; color: #2c3e50; }
         .muted { color: #7f8c8d; font-size: 12px; }
+        .alert-box { background: #fdf2f2; border: 2px solid #e74c3c; border-radius: 6px; padding: 15px; margin: 15px 0; }
+        .alert-box h3 { color: #c0392b; margin-top: 0; }
+        .alert-box ul { margin: 5px 0; }
+        .alert-box li { color: #c0392b; margin: 4px 0; }
+        .case-meta { background: white; border: 1px solid #34495e; border-radius: 6px; padding: 15px; margin: 15px 0; }
+        .case-meta table { border: none; margin: 0; }
+        .case-meta td { border: none; padding: 4px 12px 4px 0; }
+        .case-meta td:first-child { font-weight: bold; color: #34495e; white-space: nowrap; }
+        .acpo-box { background: #eaf4ea; border: 1px solid #27ae60; border-radius: 6px; padding: 12px; margin: 15px 0; font-size: 12px; }
+        .acpo-box strong { color: #27ae60; }
         @media print {
             body { background: white; margin: 0; }
             details { display: block !important; border: 1px solid #ccc; page-break-inside: avoid; }
@@ -518,8 +535,25 @@ function New-HTMLReport {
 </head>
 <body>
 <h1>Digital Forensic Report</h1>
-<p class="timestamp">Generated: $(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')</p>
-<p class="timestamp">Host: $env:COMPUTERNAME | User: $env:USERNAME</p>
+
+<div class="case-meta">
+<table>
+<tr><td>Date/Time:</td><td>$(Get-Date -Format 'dd-MM-yyyy HH:mm:ss')</td></tr>
+<tr><td>VM / Machine Label:</td><td>$(if ($VmLabel) { $VmLabel } else { 'Not specified' })</td></tr>
+<tr><td>Host Machine:</td><td>$env:COMPUTERNAME</td></tr>
+<tr><td>Logged-in User:</td><td>$env:USERNAME</td></tr>
+<tr><td>Operating System:</td><td>$(if ($SystemInfo) { ($SystemInfo | Where-Object { $_.Property -eq 'OS' } | Select-Object -ExpandProperty Value -ErrorAction SilentlyContinue) } else { 'N/A' })</td></tr>
+<tr><td>Standards:</td><td>ACPO Good Practice Guide | ISO 27037 | ISO 17025 | Forensic Science Regulator Code of Practice</td></tr>
+</table>
+</div>
+
+<div class="acpo-box">
+<strong>ACPO Good Practice Guide Compliance:</strong><br>
+Principle 1: No action taken should change data on a digital device which may subsequently be relied upon in court.<br>
+Principle 2: Where a person finds it necessary to access original data, that person must be competent to do so.<br>
+Principle 3: An audit trail of all processes applied to digital evidence should be created and preserved.<br>
+Principle 4: The person in charge of the investigation has overall responsibility for ensuring the law and these principles are adhered to.
+</div>
 
 $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
 @"
@@ -562,8 +596,43 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
     <div class="card"><h4>Amcache</h4><p>$(if($Amcache){'Collected'}else{'N/A'})</p></div>
     <div class="card"><h4>LNK Files</h4><p>$(if($LnkFiles){@($LnkFiles).Count}else{0})</p></div>
     <div class="card"><h4>Email Items</h4><p>$(if($EmailArtefacts){@($EmailArtefacts).Count}else{0})</p></div>
+    <div class="card"><h4>EML/MSG Files</h4><p>$(if($EmlMsgFiles){@($EmlMsgFiles).Count}else{0})</p></div>
     <div class="card"><h4>Memory Files</h4><p>$(if($MemoryFiles){@($MemoryFiles).Count}else{0})</p></div>
+    <div class="card"><h4>Extortion Hits</h4><p>$(if($ExtortionIndicators){@($ExtortionIndicators).Count}else{0})</p></div>
 </div>
+
+$(
+    $rfList = @()
+    if ($AlternateDataStreams -and @($AlternateDataStreams).Count -gt 0) {
+        $rfList += "Alternate Data Streams detected: $(@($AlternateDataStreams).Count) suspicious ADS entries found"
+    }
+    if ($TimestompedFiles -and @($TimestompedFiles).Count -gt 0) {
+        $rfList += "Timestomped files detected: $(@($TimestompedFiles).Count) files where Created > Modified (anti-forensic)"
+    }
+    if ($EncryptedVolumes -and @($EncryptedVolumes).Count -gt 0) {
+        $rfList += "Encrypted volumes/containers found: $(@($EncryptedVolumes).Count) (may conceal evidence)"
+    }
+    if ($DefenderExclusions -and @($DefenderExclusions).Count -gt 0) {
+        $rfList += "Windows Defender exclusions: $(@($DefenderExclusions).Count) paths/processes excluded (malware hiding)"
+    }
+    if ($WmiPersistence -and @($WmiPersistence).Count -gt 0) {
+        $rfList += "WMI persistence mechanisms: $(@($WmiPersistence).Count) event filters/consumers/bindings"
+    }
+    if ($HostsFileEntries -and @($HostsFileEntries | Where-Object { $_.Status -ne 'Default' }).Count -gt 0) {
+        $rfList += "Modified HOSTS file: non-default entries detected (traffic redirection)"
+    }
+    if ($ExtortionIndicators -and @($ExtortionIndicators).Count -gt 0) {
+        $rfList += "Extortion/theft keywords found: $(@($ExtortionIndicators).Count) matches in filenames or file content"
+    }
+    if ($ShadowCopies -and @($ShadowCopies).Count -eq 0) {
+        $rfList += "No Volume Shadow Copies found (may indicate anti-forensic VSS deletion)"
+    }
+    if ($rfList.Count -gt 0) {
+        '<div class="alert-box"><h3>HIGH PRIORITY FINDINGS</h3><ul>'
+        foreach ($rf in $rfList) { "<li>$rf</li>" }
+        '</ul><p style="font-size:12px;color:#7f8c8d;">These items require immediate investigator attention.</p></div>'
+    }
+)
 
 <details open>
     <summary>Collection Notes</summary>
@@ -1162,6 +1231,28 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
 "@
         }
 
+        # ====== EML/MSG EMAIL FILES ======
+        if ($EmlMsgFiles -and @($EmlMsgFiles).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>EML/MSG Email Files ($(if($EmlMsgFiles){@($EmlMsgFiles).Count}else{0}) files found)</summary>
+    <p><em>Standalone email files found on the filesystem. EML files are plain-text MIME format; MSG files are Outlook's proprietary format. These may be evidence of victim correspondence or extortion communications.</em></p>
+    $(@($EmlMsgFiles) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
+        # ====== EXTORTION / THEFT INDICATORS (Criterion B) ======
+        if ($ExtortionIndicators -and @($ExtortionIndicators).Count -gt 0) {
+            $html += @"
+<details open>
+    <summary>EXTORTION / THEFT INDICATORS ($(if($ExtortionIndicators){@($ExtortionIndicators).Count}else{0}) hits) (Criterion B)</summary>
+    <p><em><strong>This section directly addresses Criterion B:</strong> "Were there any files or metadata that might have been exported from previous users, downloaded, or linked to the method of alleged extortion?" Keywords scanned: ransom, extort, bitcoin, wallet, payment, victim, threat, blackmail, demand, steal, stolen, decrypt, encrypt, cryptocurrency, monero, exfiltrate.</em></p>
+    $(@($ExtortionIndicators) | ConvertTo-Html -Fragment)
+</details>
+"@
+        }
+
         # Hashes Section
         if ($FileHashes -and @($FileHashes).Count -gt 0) {
             $html += @"
@@ -1317,8 +1408,8 @@ function Get-WmiPersistence {
         [string]$OutputPath
     )
 
-        # Collects WMI persistence artifacts (filters, consumers, and bindings) to detect persistent techniques.
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
+    # Collects WMI persistence artifacts (filters, consumers, and bindings) to detect persistent techniques.
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting WMI persistence (filters/consumers/bindings) ==="
     $items = @()
 
     try {
@@ -1399,8 +1490,9 @@ function Get-Autoruns {
     param(
         [string]$OutputPath
     )
-        # Enumerates autorun entries from registry Run keys and standard Startup folders; exports findings to CSV.
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
+
+    # Enumerates autorun entries from registry Run keys and standard Startup folders; exports findings to CSV.
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Autoruns (Run keys & Startup folders) ==="
     $items = @()
 
     $runPaths = @(
@@ -3557,6 +3649,183 @@ function Get-GameArtifacts {
         Write-Host "Game artifacts saved: $($items.Count) items to $OutputPath\game_artifacts.csv"
     } else {
         Write-Host "(No game artifacts found)"
+    }
+    return $items
+}
+
+# ============================================================================
+# EML / MSG FILE SCANNER
+# ============================================================================
+# Scans user directories for standalone email files (.eml, .msg).
+# The brief states that a victim has granted access to emails — these
+# may exist as individual files on the VM rather than inside a mail client.
+# EML files are plain-text MIME format; MSG files are Outlook's proprietary format.
+function Get-EmlMsgFiles {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for EML/MSG Email Files ==="
+
+    $emailFileDir = Join-Path $OutputPath "email_files"
+    New-Item -ItemType Directory -Path $emailFileDir -Force | Out-Null
+
+    $items = @()
+    $searchPaths = @("$env:SystemDrive\Users")
+
+    foreach ($searchRoot in $searchPaths) {
+        if (-not (Test-Path $searchRoot)) { continue }
+        try {
+            $emailFiles = Get-ChildItem -Path $searchRoot -Recurse -ErrorAction SilentlyContinue -Include '*.eml','*.msg' |
+                Where-Object { $_.Length -gt 0 }
+
+            foreach ($ef in $emailFiles) {
+                $sizeMB = [math]::Round($ef.Length / 1MB, 2)
+                # Copy the file to evidence
+                $relPath = $ef.FullName.Substring($searchRoot.Length).TrimStart('\')
+                $destFile = Join-Path $emailFileDir ($relPath -replace '\\', '_')
+                try {
+                    Copy-Item $ef.FullName $destFile -Force -ErrorAction Stop
+                    $copyStatus = "Copied"
+                } catch {
+                    $copyStatus = "Failed - $_"
+                }
+
+                # Try to extract Subject from EML headers (plain text)
+                $subject = ""
+                if ($ef.Extension -eq '.eml') {
+                    try {
+                        $head = Get-Content $ef.FullName -TotalCount 50 -ErrorAction SilentlyContinue
+                        $subjectLine = $head | Where-Object { $_ -match '^Subject:\s*(.+)' } | Select-Object -First 1
+                        if ($subjectLine -match '^Subject:\s*(.+)') { $subject = $Matches[1].Trim() }
+                    } catch { }
+                }
+
+                $items += [pscustomobject]@{
+                    FileName   = $ef.Name
+                    Extension  = $ef.Extension.ToUpper().TrimStart('.')
+                    SourcePath = $ef.FullName
+                    SizeMB     = $sizeMB
+                    Modified   = $ef.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                    Created    = $ef.CreationTime.ToString('yyyy-MM-dd HH:mm:ss')
+                    Subject    = $subject
+                    CopyStatus = $copyStatus
+                }
+            }
+        } catch {
+            Write-Host "  WARNING: Error scanning $searchRoot - $_"
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\eml_msg_files.csv" -NoTypeInformation -Encoding UTF8
+        Write-Host "EML/MSG files found: $($items.Count) files saved to $OutputPath\eml_msg_files.csv"
+        Write-Host "  Raw copies saved to: $emailFileDir"
+    } else {
+        Write-Host "(No .eml or .msg email files found on this system)"
+    }
+    return $items
+}
+
+# ============================================================================
+# EXTORTION INDICATOR KEYWORD SCANNER (Criterion B)
+# ============================================================================
+# Scans filenames and text file content for keywords related to the alleged
+# offences: extortion and file theft. This directly supports Criterion B (20%):
+# "Were there any files or metadata linked to the method of alleged extortion?"
+#
+# Searches for: ransom, extort, bitcoin, wallet, payment, victim, threat,
+# encrypt, decrypt, demand, steal, stolen, blackmail, cryptocurrency, etc.
+function Search-ExtortionIndicators {
+    param(
+        [string]$OutputPath
+    )
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Scanning for Extortion/Theft Indicators (Criterion B) ==="
+
+    $items = @()
+
+    # Keywords linked to extortion, ransom, and file theft (word-boundary matched)
+    $keywords = @(
+        'ransom', 'extort', 'bitcoin', 'btc', 'wallet\.dat', 'payment',
+        'victim', 'threat', 'blackmail', 'demand', 'steal', 'stolen',
+        'decrypt', 'encrypt', 'cryptocurrency', 'monero', 'xmr',
+        'pay.?up', 'deadline', 'expose', 'leak', 'private.?key',
+        '\.onion', 'dark.?web', 'exfiltrat', 'torrent'
+    )
+    # Use word boundaries to avoid matching substrings (e.g. 'tor' in 'history')
+    $keywordPattern = ($keywords | ForEach-Object { "\b$_" }) -join '|'
+
+    # 1. Scan FILENAMES across user directories for suspicious names
+    Write-Host "  Scanning filenames for suspicious keywords..."
+    $searchPaths = @("$env:SystemDrive\Users")
+    foreach ($searchRoot in $searchPaths) {
+        if (-not (Test-Path $searchRoot)) { continue }
+        try {
+            Get-ChildItem -Path $searchRoot -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match $keywordPattern } |
+                ForEach-Object {
+                    $file = $_
+                    $items += [pscustomobject]@{
+                        Type       = 'Filename Match'
+                        FilePath   = $file.FullName
+                        FileName   = $file.Name
+                        SizeKB     = [math]::Round($file.Length / 1KB, 1)
+                        Modified   = $file.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                        MatchedOn  = ($keywords | Where-Object { $file.Name -match "\b$_" }) -join ', '
+                        Preview    = ''
+                    }
+                }
+        } catch { }
+    }
+    $fnCount = $items.Count
+    Write-Host "    Filename matches: $fnCount"
+
+    # 2. Scan TEXT FILE CONTENT for extortion-related keywords
+    Write-Host "  Scanning text file content for extortion keywords..."
+    $textExtensions = @('.txt', '.doc', '.docx', '.rtf', '.csv', '.log', '.bat', '.ps1',
+                        '.cmd', '.vbs', '.js', '.html', '.htm', '.xml', '.json', '.eml',
+                        '.msg', '.ini', '.cfg', '.md', '.py', '.php', '.asp', '.aspx')
+
+    foreach ($searchRoot in $searchPaths) {
+        if (-not (Test-Path $searchRoot)) { continue }
+        try {
+            $textFiles = Get-ChildItem -Path $searchRoot -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $textExtensions -contains $_.Extension.ToLower() -and $_.Length -lt 10MB -and $_.Length -gt 0 } |
+                Select-Object -First 500  # cap at 500 files to prevent timeouts
+
+            foreach ($tf in $textFiles) {
+                try {
+                    $contentMatches = Select-String -Path $tf.FullName -Pattern $keywordPattern -AllMatches -ErrorAction SilentlyContinue |
+                        Select-Object -First 5  # limit to first 5 matches per file
+                    if ($contentMatches) {
+                        foreach ($cm in $contentMatches) {
+                            $matchedKeywords = ($keywords | Where-Object { $cm.Line -match $_ }) -join ', '
+                            $preview = $cm.Line.Trim()
+                            if ($preview.Length -gt 200) { $preview = $preview.Substring(0, 200) + '...' }
+                            $items += [pscustomobject]@{
+                                Type       = 'Content Match'
+                                FilePath   = $tf.FullName
+                                FileName   = $tf.Name
+                                SizeKB     = [math]::Round($tf.Length / 1KB, 1)
+                                Modified   = $tf.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+                                MatchedOn  = $matchedKeywords
+                                Preview    = $preview
+                            }
+                        }
+                    }
+                } catch { }
+            }
+        } catch { }
+    }
+    $contentCount = $items.Count - $fnCount
+    Write-Host "    Content matches: $contentCount"
+
+    if ($items.Count -gt 0) {
+        $items | Export-Csv "$OutputPath\extortion_indicators.csv" -NoTypeInformation -Encoding UTF8
+        Write-Host "Extortion indicators saved: $($items.Count) hits to $OutputPath\extortion_indicators.csv"
+    } else {
+        Write-Host "(No extortion-related indicators found)"
     }
     return $items
 }
