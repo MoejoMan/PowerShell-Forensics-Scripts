@@ -67,20 +67,35 @@ function Get-RegistryHives {
                 $sizeMB = [math]::Round((Get-Item $ntuserDst).Length / 1MB, 2)
                 Write-Host "  Copied NTUSER.DAT for $($prof.Name) ($sizeMB MB)"
             } catch {
-                # File is locked - use Volume Shadow Copy trick or reg save
+                $ntuserCopied = $false
+                # Strategy 1: esentutl /y /vss (most reliable for locked files)
                 try {
-                    $regPath = "HKU\$($prof.Name)_TEMP"
-                    & reg load $regPath $ntuserSrc 2>&1 | Out-Null
-                    if (Test-Path $ntuserDst) { Remove-Item $ntuserDst -Force }
-                    & reg save $regPath $ntuserDst /y 2>&1 | Out-Null
-                    & reg unload $regPath 2>&1 | Out-Null
-                    if (Test-Path $ntuserDst) {
-                        Write-Host "  Saved NTUSER.DAT for $($prof.Name) via reg load/save"
-                    } else {
-                        Write-Host "  WARNING: Could not export NTUSER.DAT for $($prof.Name) (file locked)"
+                    Write-Host "  NTUSER.DAT locked for $($prof.Name) - trying esentutl.exe /y /vss..."
+                    $esentResult = & esentutl.exe /y /vss $ntuserSrc /d $ntuserDst 2>&1
+                    if ($LASTEXITCODE -eq 0 -and (Test-Path $ntuserDst)) {
+                        $sizeMB = [math]::Round((Get-Item $ntuserDst).Length / 1MB, 2)
+                        Write-Host "  Copied NTUSER.DAT for $($prof.Name) via esentutl ($sizeMB MB)"
+                        $ntuserCopied = $true
                     }
-                } catch {
-                    Write-Host "  WARNING: NTUSER.DAT locked for $($prof.Name) - collect via VSS or offline"
+                } catch { Write-Host "  esentutl failed for NTUSER.DAT ($($prof.Name))" }
+
+                # Strategy 2: reg load/save (works for hives not already loaded)
+                if (-not $ntuserCopied) {
+                    try {
+                        $regPath = "HKU\$($prof.Name)_TEMP"
+                        & reg load $regPath $ntuserSrc 2>&1 | Out-Null
+                        if (Test-Path $ntuserDst) { Remove-Item $ntuserDst -Force }
+                        & reg save $regPath $ntuserDst /y 2>&1 | Out-Null
+                        & reg unload $regPath 2>&1 | Out-Null
+                        if (Test-Path $ntuserDst) {
+                            Write-Host "  Saved NTUSER.DAT for $($prof.Name) via reg load/save"
+                            $ntuserCopied = $true
+                        }
+                    } catch { }
+                }
+
+                if (-not $ntuserCopied) {
+                    Write-Host "  WARNING: Could not export NTUSER.DAT for $($prof.Name) (file locked)"
                 }
             }
         }
@@ -93,7 +108,18 @@ function Get-RegistryHives {
                 Copy-Item $usrClassSrc $usrClassDst -Force -ErrorAction Stop
                 Write-Host "  Copied UsrClass.dat for $($prof.Name)"
             } catch {
-                Write-Host "  WARNING: UsrClass.dat locked for $($prof.Name)"
+                # File locked - try esentutl /y /vss
+                try {
+                    Write-Host "  UsrClass.dat locked for $($prof.Name) - trying esentutl.exe /y /vss..."
+                    $esentResult = & esentutl.exe /y /vss $usrClassSrc /d $usrClassDst 2>&1
+                    if ($LASTEXITCODE -eq 0 -and (Test-Path $usrClassDst)) {
+                        Write-Host "  Copied UsrClass.dat for $($prof.Name) via esentutl"
+                    } else {
+                        Write-Host "  WARNING: UsrClass.dat locked for $($prof.Name)"
+                    }
+                } catch {
+                    Write-Host "  WARNING: UsrClass.dat locked for $($prof.Name)"
+                }
             }
         }
     }

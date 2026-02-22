@@ -610,7 +610,7 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
     <div class="card"><h4>Tasks</h4><p>$(if($ScheduledTasks){@($ScheduledTasks).Count}else{0})</p></div>
     <div class="card"><h4>Autoruns</h4><p>$(if($Autoruns){@($Autoruns).Count}else{0})</p></div>
     <div class="card"><h4>Downloads</h4><p>$(if($downloads){@($downloads).Count}else{0})</p></div>
-    <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $null -ne $EventLogSecurity[0]) { @($EventLogSecurity).Count } else { 0 })</p></div>
+    <div class="card"><h4>Security Events</h4><p>$(if ($EventLogSecurity -and $null -ne $EventLogSecurity[0]) { @($EventLogSecurity).Count } else { 'Exported (.evtx)' })</p></div>
     <div class="card"><h4>WMI Bindings</h4><p>$(if($WmiPersistence){@($WmiPersistence).Count}else{0})</p></div>
     <div class="card"><h4>ADS Found</h4><p>$(if($AlternateDataStreams){@($AlternateDataStreams).Count}else{0})</p></div>
     <div class="card"><h4>Hidden Files</h4><p>$(if($HiddenFiles){@($HiddenFiles).Count}else{0})</p></div>
@@ -627,10 +627,10 @@ $(if ($SystemInfo -and @($SystemInfo).Count -gt 0) {
     <div class="card"><h4>Registry Hives</h4><p>$(if($RegistryHives){'Collected'}else{'N/A'})</p></div>
     <div class="card"><h4>SRUM DB</h4><p>$(if($SRUMDatabase){'Collected'}else{'N/A'})</p></div>
     <div class="card"><h4>Amcache</h4><p>$(if($Amcache){'Collected'}else{'N/A'})</p></div>
-    <div class="card"><h4>LNK Files</h4><p>$(if($LnkFiles){@($LnkFiles).Count}else{0})</p></div>
+    <div class="card"><h4>LNK Files</h4><p>$(if($LnkFiles){ $lnkCopied = @($LnkFiles | Where-Object { $_.Type -ne 'RawCopy' }).Count; if($lnkCopied -gt 0){$lnkCopied}else{ $raw = @($LnkFiles | Where-Object { $_.Type -eq 'RawCopy' }); if($raw -and $raw[0].LnkName -match '(\d+) raw'){ $Matches[1] }else{ @($LnkFiles).Count } } }else{0})</p></div>
     <div class="card"><h4>Email Items</h4><p>$(if($EmailArtefacts){@($EmailArtefacts).Count}else{0})</p></div>
     <div class="card"><h4>EML/MSG Files</h4><p>$(if($EmlMsgFiles){@($EmlMsgFiles).Count}else{0})</p></div>
-    <div class="card"><h4>Memory Files</h4><p>$(if($MemoryFiles){@($MemoryFiles).Count}else{0})</p></div>
+    <div class="card"><h4>Memory Files</h4><p>$(if($MemoryFiles){ $collected = @($MemoryFiles | Where-Object { $_.Status -and $_.Status -ne 'Not present' }); if($collected.Count -gt 0){ "$($collected.Count) / $(@($MemoryFiles).Count)" } else { '0 / ' + @($MemoryFiles).Count + ' present' } }else{0})</p></div>
     <div class="card"><h4>Extortion Hits</h4><p>$(if($ExtortionIndicators){@($ExtortionIndicators).Count}else{0})</p></div>
 </div>
 
@@ -2354,18 +2354,22 @@ function Get-RDPAndRemoteSessions {
 
     # Active logon sessions (qwinsta/query user)
     try {
-        $sessions = qwinsta 2>$null
-        if ($sessions) {
-            foreach ($line in $sessions) {
-                if ($line -match '^\s*([\w>]+)\s+(\S+)?\s+(\d+)\s+(\S+)') {
-                    $items += [pscustomobject]@{
-                        Type     = 'ActiveSession'
-                        Target   = $Matches[1]
-                        Username = $Matches[2]
-                        Detail   = "SessionId=$($Matches[3]) State=$($Matches[4])"
+        if (Get-Command qwinsta -ErrorAction SilentlyContinue) {
+            $sessions = qwinsta 2>$null
+            if ($sessions) {
+                foreach ($line in $sessions) {
+                    if ($line -match '^\s*([\w>]+)\s+(\S+)?\s+(\d+)\s+(\S+)') {
+                        $items += [pscustomobject]@{
+                            Type     = 'ActiveSession'
+                            Target   = $Matches[1]
+                            Username = $Matches[2]
+                            Detail   = "SessionId=$($Matches[3]) State=$($Matches[4])"
+                        }
                     }
                 }
             }
+        } else {
+            Write-Host "  NOTE: qwinsta not available (Windows Home edition) - skipping session enumeration"
         }
     } catch { Write-Host "WARNING: Logon session enumeration failed - $_" }
 
@@ -3768,9 +3772,16 @@ function Get-EmlMsgFiles {
 
             foreach ($ef in $emailFiles) {
                 $sizeMB = [math]::Round($ef.Length / 1MB, 2)
-                # Copy the file to evidence
+                # Copy the file to evidence (truncate filename if path would exceed 260 chars)
                 $relPath = $ef.FullName.Substring($searchRoot.Length).TrimStart('\')
-                $destFile = Join-Path $emailFileDir ($relPath -replace '\\', '_')
+                $flatName = $relPath -replace '\\', '_'
+                $destFile = Join-Path $emailFileDir $flatName
+                if ($destFile.Length -ge 250) {
+                    $ext = [System.IO.Path]::GetExtension($flatName)
+                    $maxBase = 250 - $emailFileDir.Length - 1 - $ext.Length
+                    $flatName = $flatName.Substring(0, $maxBase) + $ext
+                    $destFile = Join-Path $emailFileDir $flatName
+                }
                 try {
                     Copy-Item $ef.FullName $destFile -Force -ErrorAction Stop
                     $copyStatus = "Copied"
