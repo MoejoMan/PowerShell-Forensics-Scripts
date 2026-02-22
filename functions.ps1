@@ -138,6 +138,39 @@ function Get-SystemInfo {
         $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Serial Number';      Value = if ($bios) { $bios.SerialNumber } else { 'N/A' } }
         $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Model';              Value = if ($cs) { "$($cs.Manufacturer) $($cs.Model)" } else { 'N/A' } }
 
+        # Motherboard / Baseboard (chain-of-custody — identifies the physical machine)
+        try {
+            $baseboard = Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
+            if ($baseboard) {
+                $items += [pscustomobject]@{ Category = 'Hardware'; Property = 'Motherboard';        Value = "$($baseboard.Manufacturer) $($baseboard.Product)" }
+                $items += [pscustomobject]@{ Category = 'Hardware'; Property = 'Motherboard Serial'; Value = $baseboard.SerialNumber }
+            }
+        } catch { <# non-critical #> }
+
+        # Physical disk information (serial numbers, interface, media type)
+        try {
+            $disks = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
+            $diskIndex = 0
+            foreach ($disk in $disks) {
+                $sizeGB = if ($disk.Size) { [math]::Round($disk.Size / 1GB, 1) } else { 'N/A' }
+                $items += [pscustomobject]@{ Category = 'Disk'; Property = "Disk $diskIndex";           Value = "$($disk.Model) ($sizeGB GB)" }
+                $items += [pscustomobject]@{ Category = 'Disk'; Property = "Disk $diskIndex Serial";    Value = if ($disk.SerialNumber) { $disk.SerialNumber.Trim() } else { 'N/A' } }
+                $items += [pscustomobject]@{ Category = 'Disk'; Property = "Disk $diskIndex Interface"; Value = "$($disk.InterfaceType) / $($disk.MediaType)" }
+                $items += [pscustomobject]@{ Category = 'Disk'; Property = "Disk $diskIndex Partitions"; Value = $disk.Partitions }
+                $diskIndex++
+            }
+        } catch { <# non-critical #> }
+
+        # Logical drive letters and volume names (maps letters to physical disks)
+        try {
+            $logicalDisks = Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue
+            foreach ($ld in $logicalDisks) {
+                $ldSizeGB = if ($ld.Size) { [math]::Round($ld.Size / 1GB, 1) } else { '?' }
+                $ldFreeGB = if ($ld.FreeSpace) { [math]::Round($ld.FreeSpace / 1GB, 1) } else { '?' }
+                $items += [pscustomobject]@{ Category = 'Disk'; Property = "Volume $($ld.DeviceID)"; Value = "$($ld.VolumeName) [$ldSizeGB GB total, $ldFreeGB GB free] $($ld.FileSystem)" }
+            }
+        } catch { <# non-critical #> }
+
         # Secure Boot status
         try {
             $secureBoot = Confirm-SecureBootUEFI -ErrorAction Stop
@@ -1676,6 +1709,8 @@ function Get-HiddenFiles {
 # Detects presence of disk-encryption tools (BitLocker, VeraCrypt,
 # TrueCrypt) and containers.  Encrypted volumes may hide stolen data
 # or extortion-related material from forensic examination.
+# Also runs manage-bde to capture BitLocker recovery keys & protector details
+# for every drive letter (mirrors SimpleImager D-Acquisition approach).
 function Get-EncryptedVolumeDetection {
     param(
         [string]$OutputPath
@@ -1684,7 +1719,7 @@ function Get-EncryptedVolumeDetection {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Detecting Encrypted Volumes & Containers ==="
     $items = @()
 
-    # BitLocker status
+    # BitLocker status via PowerShell cmdlet
     try {
         $bl = Get-BitLockerVolume -ErrorAction SilentlyContinue
         foreach ($v in $bl) {
@@ -1692,11 +1727,63 @@ function Get-EncryptedVolumeDetection {
                 Type       = 'BitLocker'
                 Identifier = $v.MountPoint
                 Status     = $v.ProtectionStatus
-                Detail     = $v.EncryptionMethod
+                Detail     = "$($v.EncryptionMethod) | KeyProtectors: $($v.KeyProtector.KeyProtectorType -join ', ')"
             }
         }
     } catch {
-        Write-Host "WARNING: BitLocker query failed (may not be available) - $_"
+        Write-Host "WARNING: BitLocker PowerShell query failed - $_"
+    }
+
+    # manage-bde deep scan: status + protectors for every drive letter
+    # This catches drives that Get-BitLockerVolume might miss and
+    # captures recovery key IDs needed for chain-of-custody documentation
+    try {
+        $manageBde = Get-Command 'manage-bde' -ErrorAction SilentlyContinue
+        if ($manageBde) {
+            # Overall status
+            $bdeStatus = & manage-bde -status 2>&1 | Out-String
+            if ($bdeStatus) {
+                $bdeFile = Join-Path $OutputPath 'bitlocker_manage-bde_status.txt'
+                $bdeStatus | Set-Content -Path $bdeFile -Encoding UTF8
+                Write-Host "  manage-bde status saved to: bitlocker_manage-bde_status.txt"
+            }
+
+            # Per-drive protectors (recovery keys, passwords, TPM, etc.)
+            $driveLetters = @('C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','A','B')
+            $protectorOutput = @()
+            foreach ($letter in $driveLetters) {
+                $drivePath = "${letter}:"
+                if (-not (Test-Path $drivePath)) { continue }
+                try {
+                    $protectors = & manage-bde -protectors $drivePath -get 2>&1 | Out-String
+                    if ($protectors -and $protectors -notmatch 'ERROR|not found') {
+                        $protectorOutput += "=== $drivePath ==="
+                        $protectorOutput += $protectors
+                        $protectorOutput += ""
+
+                        # Extract protector type for the CSV
+                        if ($protectors -match 'Numerical Password|TPM|External Key|Password') {
+                            $protType = ($protectors | Select-String -Pattern 'Numerical Password|TPM|External Key|Password' -AllMatches).Matches.Value -join ', '
+                            $items += [pscustomobject]@{
+                                Type       = 'BitLocker-Protector'
+                                Identifier = $drivePath
+                                Status     = 'Has protectors'
+                                Detail     = $protType
+                            }
+                        }
+                    }
+                } catch { <# drive not BitLocker-encrypted, skip #> }
+            }
+            if ($protectorOutput.Count -gt 0) {
+                $protFile = Join-Path $OutputPath 'bitlocker_protectors.txt'
+                $protectorOutput | Set-Content -Path $protFile -Encoding UTF8
+                Write-Host "  BitLocker protectors saved to: bitlocker_protectors.txt"
+            }
+        } else {
+            Write-Host "  manage-bde not available on this system"
+        }
+    } catch {
+        Write-Host "WARNING: manage-bde scan failed - $_"
     }
 
     # Look for VeraCrypt / TrueCrypt containers by extension or known process
