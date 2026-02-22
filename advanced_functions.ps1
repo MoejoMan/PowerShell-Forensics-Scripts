@@ -759,26 +759,57 @@ function Get-SleepingVMArtefacts {
     New-Item -ItemType Directory -Path $sleepDir -Force | Out-Null
 
     # â”€â”€ Find VMDK / VHD files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Find VMDK / VHD files ------------------------------------------------
     if (-not $VmdkPath) {
-        Write-Host "  Searching for VMDK/VHD files under $VmSearchPath ..."
-        $vmFiles = Get-ChildItem -Path $VmSearchPath -Recurse -Depth 6 -ErrorAction SilentlyContinue |
-                   Where-Object { $_.Extension -match '\.(vmdk|vhd|vhdx|ova|ovf)$' } |
-                   Sort-Object Length -Descending
+        # Search common VM storage locations first, then fall back to full drive scan
+        $searchLocations = @(
+            "$env:SystemDrive\VMs",
+            "$env:SystemDrive\Virtual Machines",
+            "$env:SystemDrive\Users\$env:USERNAME\VirtualBox VMs",
+            "$env:SystemDrive\Users\$env:USERNAME\Documents\Virtual Machines",
+            "$env:ProgramData\Microsoft\Windows\Hyper-V",
+            "$env:SystemDrive\Hyper-V",
+            "$env:SystemDrive\VMware",
+            "D:\VMs", "D:\Virtual Machines", "E:\VMs", "E:\Virtual Machines",
+            $VmSearchPath
+        )
+        Write-Host "  Searching for VMDK/VHD files in common VM locations..."
+        $vmFiles = @()
+        foreach ($loc in $searchLocations) {
+            if (Test-Path $loc -ErrorAction SilentlyContinue) {
+                $found = Get-ChildItem -Path $loc -Recurse -Depth 6 -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Extension -match '\.(vmdk|vhd|vhdx)$' -and $_.Name -notmatch '-s\d+\.vmdk$' }
+                if ($found) { $vmFiles += $found }
+            }
+        }
+        # Deduplicate by full path and sort by size descending
+        $vmFiles = $vmFiles | Sort-Object FullName -Unique | Sort-Object Length -Descending
 
         if ($vmFiles) {
-            Write-Host "  Found VM disk files:"
-            $vmFiles | ForEach-Object {
-                $sizeMB = [math]::Round($_.Length / 1MB, 1)
-                Write-Host "    $($_.FullName) ($sizeMB MB)"
-            }
-            # Use largest VMDK (most likely the main disk, not a snapshot delta)
-            $VmdkPath = ($vmFiles | Select-Object -First 1).FullName
             Write-Host ""
-            Write-Host "  Automatically selected: $VmdkPath"
-            Write-Host "  If this is wrong, re-run with -VmdkPath 'correct\path.vmdk'"
+            Write-Host "  Found VM disk files:"
+            Write-Host "  -------------------------------------------------------"
+            $i = 0
+            foreach ($vf in $vmFiles) {
+                $i++
+                $sizeGB = [math]::Round($vf.Length / 1GB, 2)
+                Write-Host "    [$i] $($vf.FullName) ($sizeGB GB)"
+            }
+            Write-Host "  -------------------------------------------------------"
+            Write-Host ""
+            $choice = Read-Host "  Enter number to select (or full path, or Enter for #1)"
+            if (-not $choice -or $choice -eq '1') {
+                $VmdkPath = $vmFiles[0].FullName
+            } elseif ($choice -match '^\d+$' -and [int]$choice -le $vmFiles.Count) {
+                $VmdkPath = $vmFiles[[int]$choice - 1].FullName
+            } else {
+                $VmdkPath = $choice  # user typed a full path
+            }
+            Write-Host "  Selected: $VmdkPath"
         } else {
-            Write-Host "  WARNING: No VMDK/VHD files found under $VmSearchPath"
-            Write-Host "  Set -VmSearchPath to the folder containing your VMs."
+            Write-Host "  WARNING: No VMDK/VHD files found in any common location."
+            Write-Host "  Searched: $($searchLocations -join ', ')"
+            $VmdkPath = Read-Host "  Enter the full path to the VMDK/VHD file manually"
         }
     }
 

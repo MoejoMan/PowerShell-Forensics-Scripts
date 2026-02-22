@@ -517,7 +517,10 @@ do {
     $vmType = Read-Host "Enter 1 or 2"
     $isSleeping = ($vmType -eq '1')
 
-    $vmdkInput = Read-Host "Enter full path to VMDK/VHD file (or press Enter to auto-search)"
+    $vmdkInput = Read-Host "Enter full path to VMDK/VHD file (or press Enter to auto-search all drives)"
+    if (-not $vmdkInput) {
+        Write-Host "  Auto-search selected - the script will scan common VM locations."
+    }
     $vmLabel = Read-Host "Enter a label for this VM (e.g. VM1_Sleeping or VM2_Off)"
     if (-not $vmLabel) {
         if ($isSleeping) { $vmLabel = "VM${vmNumber}_Sleeping" }
