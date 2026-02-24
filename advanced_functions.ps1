@@ -151,7 +151,8 @@ function Get-SRUMDatabase {
     $srumSrc = "$env:SystemRoot\System32\sru\SRUDB.dat"
     $srumDst = Join-Path $OutputPath "SRUDB.dat"
 
-    if (-not (Test-Path $srumSrc)) {
+    $srumExists = try { Test-Path $srumSrc -ErrorAction Stop } catch { $false }
+    if (-not $srumExists) {
         Write-Host "  (SRUM database not found at $srumSrc)"
         return $null
     }
@@ -227,7 +228,8 @@ function Get-AmcacheAndShimcache {
     $amcacheSrc = "$env:SystemRoot\AppCompat\Programs\Amcache.hve"
     $amcacheDst = Join-Path $amcacheDir "Amcache.hve"
 
-    if (Test-Path $amcacheSrc) {
+    $amcacheExists = try { Test-Path $amcacheSrc -ErrorAction Stop } catch { $false }
+    if ($amcacheExists) {
         $amcacheCopied = $false
         try {
             Copy-Item $amcacheSrc $amcacheDst -Force -ErrorAction Stop
