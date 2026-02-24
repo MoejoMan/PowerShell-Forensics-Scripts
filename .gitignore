@@ -8,6 +8,15 @@ Errors/
 # Local archives of collected evidence (kept for reference, not tracked)
 Archive/
 
+# Binary tools - not distributed via repo (download separately)
+bin/
+
+# SimpleImager (third-party tool, not ours)
+SimpleImager-main/
+
+# Personal example/learning scripts
+EXAMPLE SCRIPTS/
+
 # Raw memory dumps
 *.raw
 
@@ -17,7 +26,3 @@ Archive/
 # System files
 .DS_Store
 Thumbs.db
-
-# Optional - exclude large binary files
-bin/winpmem/*.exe
-go-winpmem_amd64_1.0-rc2_signed.exe
