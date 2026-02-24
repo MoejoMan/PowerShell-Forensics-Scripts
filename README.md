@@ -86,6 +86,23 @@ This toolkit automates **55+ forensic collection functions** across 5 script fil
 - HTML report generation with case metadata, ACPO banner, and red flags summary
 - VM image acquisition loop (sleeping VM + switched-off VM from host)
 
+## Prerequisites
+
+The scripts themselves are pure PowerShell 5.1 (built into Windows 10/11) — no install needed. However, several **optional external tools** enhance collection capabilities. Place them in a `bin/` folder at the project root:
+
+| Tool | Required? | Purpose | Download | Place in |
+|------|-----------|---------|----------|----------|
+| **WinPmem** | For RAM dump | Live memory acquisition | [GitHub](https://github.com/Velocidex/WinPmem/releases) | `bin/winpmem/` |
+| **DumpIt** | For RAM dump (alt) | RAM dump fallback | [Magnet Forensics](https://www.magnetforensics.com/resources/magnet-dumpit-for-windows/) | `bin/` |
+| **FTK Imager CLI** | For disk imaging | E01/RAW VMDK imaging | [Exterro](https://www.exterro.com/ftk-imager) | `bin/FTKImager/` |
+| **MFTECmd** | For MFT parsing | $MFT parsing fallback | [Eric Zimmerman Tools](https://ericzimmerman.github.io/#!index.md) | `bin/MFTECmd/` |
+| **PowerForensicsv2** | For $MFT/$LogFile | Raw NTFS artifact access | [GitHub](https://github.com/Invoke-IR/PowerForensics) | `bin/PowerForensicsv2/` |
+| **Strings** | For memory analysis | SysInternals strings extraction | [Microsoft](https://learn.microsoft.com/en-us/sysinternals/downloads/strings) | `bin/Strings/` |
+| **Volatility 3** | For memory analysis | RAM image analysis framework | [GitHub](https://github.com/volatilityfoundation/volatility3) | `bin/volatility3/` |
+| **Python 3.x** | For Volatility 3 | Volatility runtime | [python.org](https://www.python.org/downloads/) | In system PATH |
+
+> **Note:** `bin/` is git-ignored. These tools must be downloaded separately and placed locally. The toolkit works without them — features that need missing tools will gracefully skip.
+
 ## Project Structure
 
 ```
@@ -95,8 +112,10 @@ advanced_functions.ps1           # Registry, SRUM, Amcache, LNK, MFT, FTK, sleep
 new_functions.ps1                # Full event logs + multi-VM batch mode
 email_pagefile_functions.ps1     # Email artefacts + pagefile/hiberfil collection
 run.bat                         # Auto-elevating batch launcher
-bin/                            # External tools
+bin/                            # External tools (git-ignored, download separately)
+    DumpIt.exe                  #   RAM dump fallback
     FTKImager/                  #   FTK Imager CLI (VMDK/disk imaging)
+    MFTECmd/                    #   MFTECmd.exe ($MFT parsing)
     PowerForensicsv2/           #   PowerForensics module ($MFT, $LogFile, etc.)
     Strings/                    #   SysInternals strings.exe/strings64.exe
     volatility3/                #   Volatility 3 source (requires Python)
@@ -104,7 +123,6 @@ bin/                            # External tools
 Evidence/<label>/               # Output directory for collected data
 HTMLReport/<label>/             # HTML report output
 Transcript/<label>/             # Execution transcript logs (ACPO Principle 3)
-Archive/                        # Local archive of previous runs (git-ignored)
 ```
 
 ## How to Use
@@ -273,6 +291,8 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 ## Notes
 
 - Run as **administrator** for full collection (RAM, prefetch, security logs, SRUM, $MFT, registry hives).
+- Without admin, most collectors still work — locked files and privileged artifacts are gracefully skipped.
+- `bin/` is **not included in the repository** — download tools separately (see Prerequisites above).
 - WinPmem must be in `bin\winpmem\` for RAM capture.
 - FTK Imager CLI must be in `bin\FTKImager\` for VMDK imaging.
 - Volatility 3 requires Python in PATH (source in `bin\volatility3\`).
