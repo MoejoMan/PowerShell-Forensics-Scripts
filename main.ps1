@@ -3,7 +3,8 @@ param(
     [switch]$SkipRamDump,
     [switch]$SkipHashes,
     [string]$VmLabel    = "Default",
-    [switch]$BatchMode          # NEW: run interactive multi-VM loop
+    [switch]$BatchMode,         # run interactive multi-VM loop
+    [switch]$ImageFirst         # HOST-FIRST: image VMs from host before resuming
 )
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -31,10 +32,174 @@ if (Test-Path $pfModulePath) {
     Write-Host "[PowerForensics] Module not found at bin\PowerForensicsv2\ (optional)"
 }
 
-# ── Batch mode: hand off to the multi-VM orchestrator and exit ───────────────
+# - Batch mode: hand off to the multi-VM orchestrator and exit -
 if ($BatchMode) {
     $baseOut = $PSScriptRoot
     Invoke-MultiVMCollection -ScriptRoot $PSScriptRoot -BaseOutputPath $baseOut
+    exit
+}
+
+# - Image-First mode: image VMs from host BEFORE resuming -
+# CORRECT FORENSIC ORDER:
+#   Step 1: Run from HOST with -ImageFirst  → images both VMDKs, copies .vmem
+#   Step 2: Resume sleeping VM, set up shared folder to host
+#   Step 3: Run from INSIDE the VM (without -ImageFirst) → live triage
+if ($ImageFirst) {
+    $scriptRoot = $PSScriptRoot
+
+    Write-Host ""
+    Write-Host "=========================================================="
+    Write-Host "  HOST-FIRST MODE: Image VMs Before Resuming"
+    Write-Host "=========================================================="
+    Write-Host ""
+    Write-Host "  CORRECT FORENSIC ORDER (ACPO Principle 1):"
+    Write-Host "    1. [NOW]  Image both VMDKs from the host (preserves pristine state)"
+    Write-Host "    2. [NEXT] Resume the sleeping VM via hypervisor"
+    Write-Host "    3. [NEXT] Set up shared folder between host and VM"
+    Write-Host "    4. [NEXT] Run this script INSIDE the VM (option 1) for live triage"
+    Write-Host ""
+    Write-Host "  The host contains no evidential data - only the VMs matter."
+    Write-Host "  Imaging first means you have a pristine copy before any interaction."
+    Write-Host ""
+
+    $vmNumber = 0
+    do {
+        if ($vmNumber -gt 0) {
+            Write-Host ""
+            Write-Host "VM #$vmNumber imaging complete. You can image another VM now."
+        }
+        Write-Host ""
+
+        $doVM = Read-Host "Image a VM from the host? (Y/N)"
+        if ($doVM -ne 'Y' -and $doVM -ne 'y') {
+            if ($vmNumber -eq 0) {
+                Write-Host "No VMs imaged."
+            }
+            break
+        }
+
+        $vmNumber++
+
+        # Ask what type of VM this is
+        Write-Host ""
+        Write-Host "What type of VM is this?"
+        Write-Host "  1. Sleeping/Suspended VM (has .vmem memory - will copy + run Volatility)"
+        Write-Host "  2. Switched-off VM (VMDK only - disk image for offline analysis)"
+        $vmType = Read-Host "Enter 1 or 2"
+        $isSleeping = ($vmType -eq '1')
+
+        $vmdkInput = Read-Host "Enter full path to VMDK/VHD file (or press Enter to auto-search)"
+        if (-not $vmdkInput) {
+            Write-Host "  Auto-search selected - scanning common VM locations..."
+        }
+        $vmLabelInput = Read-Host "Enter a label for this VM (e.g. VM1_Sleeping or VM2_Off)"
+        if (-not $vmLabelInput) {
+            if ($isSleeping) { $vmLabelInput = "VM${vmNumber}_Sleeping" }
+            else { $vmLabelInput = "VM${vmNumber}_Off" }
+        }
+
+        $vmOutputPath = "$scriptRoot\Evidence\$vmLabelInput"
+        New-Item -ItemType Directory -Path $vmOutputPath -Force | Out-Null
+
+        # Start transcript for this VM acquisition
+        $vmTranscript = "$scriptRoot\Transcript\${vmLabelInput}\transcript_$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+        New-Item -ItemType Directory -Path (Split-Path $vmTranscript) -Force | Out-Null
+        Start-Transcript -Path $vmTranscript -Force
+
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting VM acquisition #$vmNumber : $vmLabelInput"
+        Write-Host "  VM Type: $(if ($isSleeping) { 'Sleeping/Suspended (memory available)' } else { 'Switched Off (disk only)' })"
+
+        # Image the VMDK and copy .vmem (read-only, no VM is booted)
+        Get-SleepingVMArtefacts -OutputPath $vmOutputPath `
+                                -ScriptRoot $scriptRoot `
+                                -VmLabel $vmLabelInput `
+                                -VmdkPath $vmdkInput
+
+        # --- Volatility / Strings on .vmem (sleeping VM only) ---
+        if ($isSleeping) {
+            $vmemFiles = Get-ChildItem "$vmOutputPath" -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Extension -match '\.(vmem|vmsn)$' }
+            $vmemFile = $vmemFiles | Sort-Object Length -Descending | Select-Object -First 1
+
+            if ($vmemFile) {
+                Write-Host ""
+                Write-Host "=========================================================="
+                Write-Host "  MEMORY ANALYSIS ON .VMEM"
+                Write-Host "=========================================================="
+                Write-Host "  Analysing: $($vmemFile.Name) ($([math]::Round($vmemFile.Length / 1MB, 1)) MB)"
+                Write-Host ""
+
+                $vmMemAnalysis = Get-MemoryStrings -OutputPath $vmOutputPath `
+                                                   -RamDumpPath $vmemFile.FullName `
+                                                   -ScriptRoot $scriptRoot
+                if ($vmMemAnalysis) {
+                    Write-Host "  Memory analysis results saved to: $vmOutputPath\memory_analysis\"
+                }
+            } else {
+                Write-Host "  NOTE: No .vmem file found - VM may have been shut down, not suspended."
+            }
+        }
+
+        # Hash the acquired image files
+        Write-Host ""
+        Write-Host "=== Hashing acquired image files ==="
+        $imageFiles = Get-ChildItem "$vmOutputPath" -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -match '\.(E01|001|raw|vmem|vmsn|vmss)$' }
+        $imageHashResults = @()
+        foreach ($img in $imageFiles) {
+            Write-Host "  Hashing $($img.Name)..."
+            $md5    = (Get-FileHash $img.FullName -Algorithm MD5).Hash
+            $sha1   = (Get-FileHash $img.FullName -Algorithm SHA1).Hash
+            $sha256 = (Get-FileHash $img.FullName -Algorithm SHA256).Hash
+            Write-Host "    MD5   : $md5"
+            Write-Host "    SHA1  : $sha1"
+            Write-Host "    SHA256: $sha256"
+            $imageHashResults += [pscustomobject]@{
+                File   = $img.Name
+                MD5    = $md5
+                SHA1   = $sha1
+                SHA256 = $sha256
+                SizeMB = [math]::Round($img.Length / 1MB, 1)
+            }
+        }
+        if ($imageHashResults) {
+            $imageHashResults | Export-Csv "$vmOutputPath\image_hashes.csv" -NoTypeInformation -Encoding UTF8
+        }
+        Write-Host "Image hashes saved to: $vmOutputPath\image_hashes.csv"
+
+        Write-Host ""
+        Write-Host "=========================================================="
+        Write-Host "VM #$vmNumber ($vmLabelInput) acquisition complete."
+        Write-Host "Evidence: $vmOutputPath"
+        Write-Host "=========================================================="
+
+        Stop-Transcript
+
+    } while ($true)
+
+    # --- Print next-steps instructions ---
+    Write-Host ""
+    Write-Host "=========================================================="
+    Write-Host "  ALL VM IMAGES ACQUIRED - NEXT STEPS"
+    Write-Host "=========================================================="
+    Write-Host ""
+    Write-Host "  Images are safely stored. Now do the live triage:"
+    Write-Host ""
+    Write-Host "  1. Open the hypervisor (VMware / Hyper-V)"
+    Write-Host "  2. Resume the SLEEPING VM (the one with the .vmem)"
+    Write-Host "  3. Set up a shared folder between host and VM:"
+    Write-Host "     - VMware: VM > Settings > Options > Shared Folders > Add"
+    Write-Host "       Point it to: $scriptRoot"
+    Write-Host "     - Hyper-V: Use Enhanced Session mode or copy via RDP"
+    Write-Host "     - VirtualBox: Devices > Shared Folders > Add"
+    Write-Host "  4. Inside the VM, navigate to the shared folder"
+    Write-Host "  5. Run: run.bat  (choose option 1, label e.g. VM1_Live)"
+    Write-Host "  6. The script will do full live triage inside the VM"
+    Write-Host ""
+    Write-Host "  The OFF VM stays off - analyse its E01 image offline later."
+    Write-Host "=========================================================="
+    Write-Host ""
+
     exit
 }
 
@@ -467,148 +632,24 @@ try {
 }
 
 # ============================================================================
-# VM IMAGE ACQUISITION (runs after live triage + transcript close)
+# VM IMAGE ACQUISITION (legacy fallback - use -ImageFirst mode instead)
 # ============================================================================
-# This runs outside the try/finally so the live evidence is already safe.
-# The brief specifies TWO VMs: one sleeping (has .vmem memory) and one
-# switched off (VMDK only, no live memory). This loop lets the investigator
-# image both sequentially from the host machine.
-#
-# For the SLEEPING VM: FTK Imager creates an E01 of the VMDK, copies .vmem,
-#   then runs Volatility + strings on the .vmem (Criterion D: memory links).
-# For the OFF VM: FTK Imager creates an E01 of the VMDK for offline analysis.
+# If the operator didn't use -ImageFirst mode from the host beforehand,
+# offer one last chance to image VMs before leaving the scene.
 
-$vmNumber = 0
-do {
+Write-Host ""
+$alreadyImaged = Read-Host "Did you already image the VMs from the host using option 3? (Y/N)"
+if ($alreadyImaged -eq 'Y' -or $alreadyImaged -eq 'y') {
+    Write-Host "VM imaging already done - skipping. All evidence collected."
+} else {
     Write-Host ""
-    Write-Host "=========================================="
-    Write-Host "  VM IMAGE ACQUISITION"
-    Write-Host "=========================================="
+    Write-Host "  WARNING: You should image VMs from the HOST before leaving."
+    Write-Host "  If you're running this INSIDE a VM right now, exit and run"
+    Write-Host "  'run.bat' option 3 from the HOST machine instead."
     Write-Host ""
-    if ($vmNumber -eq 0) {
-        Write-Host "The brief specifies TWO VMs on the host machine:"
-        Write-Host "  1. A sleeping/suspended VM (has .vmem memory snapshot)"
-        Write-Host "  2. A switched-off VM (VMDK only, no live memory)"
-        Write-Host ""
-        Write-Host "You should image BOTH VMs from the host before leaving the scene."
-        Write-Host "The host computer itself contains no evidential data."
-    } else {
-        Write-Host "VM #$vmNumber imaging complete. You can image another VM now."
+    $doVMNow = Read-Host "Image VMs from here anyway? (Y/N)"
+    if ($doVMNow -eq 'Y' -or $doVMNow -eq 'y') {
+        # Re-launch in ImageFirst mode
+        & "$scriptRoot\main.ps1" -ImageFirst
     }
-    Write-Host ""
-
-    $doVM = Read-Host "Image a VM from the host? (Y/N)"
-    if ($doVM -ne 'Y' -and $doVM -ne 'y') {
-        if ($vmNumber -eq 0) {
-            Write-Host "Skipping all VM imaging."
-        } else {
-            Write-Host "No more VMs to image."
-        }
-        break
-    }
-
-    $vmNumber++
-
-    # Ask what type of VM this is
-    Write-Host ""
-    Write-Host "What type of VM is this?"
-    Write-Host "  1. Sleeping/Suspended VM (has .vmem memory - will run Volatility analysis)"
-    Write-Host "  2. Switched-off VM (VMDK only - disk image for offline analysis)"
-    $vmType = Read-Host "Enter 1 or 2"
-    $isSleeping = ($vmType -eq '1')
-
-    $vmdkInput = Read-Host "Enter full path to VMDK/VHD file (or press Enter to auto-search all drives)"
-    if (-not $vmdkInput) {
-        Write-Host "  Auto-search selected - the script will scan common VM locations."
-    }
-    $vmLabel = Read-Host "Enter a label for this VM (e.g. VM1_Sleeping or VM2_Off)"
-    if (-not $vmLabel) {
-        if ($isSleeping) { $vmLabel = "VM${vmNumber}_Sleeping" }
-        else { $vmLabel = "VM${vmNumber}_Off" }
-    }
-
-    $vmOutputPath = "$scriptRoot\Evidence\$vmLabel"
-    New-Item -ItemType Directory -Path $vmOutputPath -Force | Out-Null
-
-    # Start transcript BEFORE any work so prompts + output are captured
-    $vmTranscript = "$scriptRoot\Transcript\${vmLabel}\transcript_$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
-    New-Item -ItemType Directory -Path (Split-Path $vmTranscript) -Force | Out-Null
-    Start-Transcript -Path $vmTranscript -Force
-
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting VM acquisition #$vmNumber : $vmLabel"
-    Write-Host "  VM Type: $(if ($isSleeping) { 'Sleeping/Suspended (memory available)' } else { 'Switched Off (disk only)' })"
-
-    # Run the acquisition function (handles VMDK search, .vmem copy, FTK imaging)
-    Get-SleepingVMArtefacts -OutputPath $vmOutputPath `
-                            -ScriptRoot $scriptRoot `
-                            -VmLabel $vmLabel `
-                            -VmdkPath $vmdkInput
-
-    # --- Volatility / Strings analysis on .vmem (sleeping VM only) ---
-    if ($isSleeping) {
-        $vmemFiles = Get-ChildItem "$vmOutputPath" -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension -match '\.(vmem|vmsn)$' }
-        $vmemFile = $vmemFiles | Sort-Object Length -Descending | Select-Object -First 1
-
-        if ($vmemFile) {
-            Write-Host ""
-            Write-Host "=========================================="
-            Write-Host "  MEMORY ANALYSIS ON .VMEM (Criterion D)"
-            Write-Host "=========================================="
-            Write-Host "  Analysing: $($vmemFile.Name) ($([math]::Round($vmemFile.Length / 1MB, 1)) MB)"
-            Write-Host "  Looking for: processes, network connections, files linking to second VM"
-            Write-Host ""
-
-            $vmMemAnalysis = Get-MemoryStrings -OutputPath $vmOutputPath `
-                                               -RamDumpPath $vmemFile.FullName `
-                                               -ScriptRoot $scriptRoot
-            if ($vmMemAnalysis) {
-                Write-Host "  Memory analysis results saved to: $vmOutputPath\memory_analysis\"
-            }
-        } else {
-            Write-Host ""
-            Write-Host "  NOTE: No .vmem file found in evidence - cannot run memory analysis."
-            Write-Host "  This may mean the VM was shut down rather than suspended."
-        }
-    } else {
-        Write-Host ""
-        Write-Host "  NOTE: Switched-off VM - no live memory available."
-        Write-Host "  Disk image will be analysed offline (mount E01 in FTK Imager)."
-    }
-
-    # Generate hashes of the acquired image files
-    Write-Host ""
-    Write-Host "=== Hashing acquired image files ==="
-    $imageFiles = Get-ChildItem "$vmOutputPath" -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -match '\.(E01|001|raw|vmem|vmsn|vmss)$' }
-    $imageHashResults = @()
-    foreach ($img in $imageFiles) {
-        Write-Host "  Hashing $($img.Name)..."
-        $md5  = (Get-FileHash $img.FullName -Algorithm MD5).Hash
-        $sha1 = (Get-FileHash $img.FullName -Algorithm SHA1).Hash
-        $sha256 = (Get-FileHash $img.FullName -Algorithm SHA256).Hash
-        Write-Host "    MD5   : $md5"
-        Write-Host "    SHA1  : $sha1"
-        Write-Host "    SHA256: $sha256"
-        $imageHashResults += [pscustomobject]@{
-            File   = $img.Name
-            MD5    = $md5
-            SHA1   = $sha1
-            SHA256 = $sha256
-            SizeMB = [math]::Round($img.Length / 1MB, 1)
-        }
-    }
-    if ($imageHashResults) {
-        $imageHashResults | Export-Csv "$vmOutputPath\image_hashes.csv" -NoTypeInformation -Encoding UTF8
-    }
-    Write-Host "Image hashes saved to: $vmOutputPath\image_hashes.csv"
-
-    Write-Host ""
-    Write-Host "=========================================="
-    Write-Host "VM #$vmNumber ($vmLabel) acquisition complete."
-    Write-Host "Evidence: $vmOutputPath"
-    Write-Host "=========================================="
-
-    Stop-Transcript
-
-} while ($true)
+}

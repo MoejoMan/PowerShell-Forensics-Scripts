@@ -492,7 +492,7 @@ function Get-MFTAndUsnJournal {
         Write-Host "  WARNING: USN Journal export failed - $_"
     }
 
-    # ── 2. $MFT extraction ── PowerForensics > RawCopy > MFTECmd > esentutl ────
+    # - 2. $MFT extraction - PowerForensics > RawCopy > MFTECmd > esentutl -
     # Try PowerForensics Copy-ForensicFile first (reads raw NTFS, no external exe needed)
     $pfModule = Join-Path $ScriptRoot "bin\PowerForensicsv2\PowerForensicsv2.psd1"
     $hasPowerForensics = Test-Path $pfModule
@@ -558,7 +558,7 @@ function Get-MFTAndUsnJournal {
         Write-Host "  The raw `$MFT file is locked by NTFS. Last resort: FTK Imager GUI."
     }
 
-    # ── 3. $LogFile (NTFS transaction log) ─────────────────────────────────────
+    # - 3. $LogFile (NTFS transaction log) -
     # The NTFS $LogFile records all metadata changes (file create/delete/rename).
     # Critical for timeline reconstruction — shows what happened even after deletion.
     Write-Host "  Extracting `$LogFile (NTFS transaction log)..."
@@ -601,7 +601,7 @@ function Get-MFTAndUsnJournal {
         Write-Host "  WARNING: Could not extract `$LogFile."
     }
 
-    # ── 4. $UsnJrnl:$J raw binary copy ────────────────────────────────────────
+    # - 4. $UsnJrnl:$J raw binary copy -
     # The raw $J stream is needed by MFTECmd for proper parsing.
     # fsutil gives a text dump (already done above); this copies the binary stream.
     Write-Host "  Extracting `$UsnJrnl:`$J (raw binary stream)..."
@@ -841,44 +841,106 @@ function Get-SleepingVMArtefacts {
         }
     }
 
-    # â”€â”€ Look for memory snapshot (.vmem / .vmsn) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Look for memory snapshot (.vmem / .vmsn / .vmss) ----------------------
+    # Search VMDK folder, parent folder, and Snapshots subfolder
     if ($VmdkPath) {
         $vmDir = Split-Path $VmdkPath -Parent
-        $memFiles = Get-ChildItem $vmDir -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Extension -match '\.(vmem|vmsn|vmss)$' }
+        $searchDirs = @($vmDir)
+        $parentDir = Split-Path $vmDir -Parent -ErrorAction SilentlyContinue
+        if ($parentDir -and (Test-Path $parentDir)) { $searchDirs += $parentDir }
+        $snapDir = Join-Path $vmDir "Snapshots"
+        if (Test-Path $snapDir) { $searchDirs += $snapDir }
+
+        Write-Host "  Searching for .vmem/.vmsn/.vmss in:"
+        $searchDirs | ForEach-Object { Write-Host "    $_" }
+
+        $memFiles = @()
+        foreach ($sd in $searchDirs) {
+            $found = Get-ChildItem $sd -File -ErrorAction SilentlyContinue |
+                     Where-Object { $_.Extension -match '\.(vmem|vmsn|vmss)$' }
+            if ($found) { $memFiles += $found }
+        }
+        $memFiles = $memFiles | Sort-Object FullName -Unique
 
         if ($memFiles) {
             Write-Host ""
-            Write-Host "  Memory snapshot files found (VM was SUSPENDED, not shut down):"
+            Write-Host "  MEMORY SNAPSHOT FILES FOUND (VM was SUSPENDED - RAM preserved):"
             foreach ($mf in $memFiles) {
                 $sizeMB = [math]::Round($mf.Length / 1MB, 1)
-                Write-Host "    $($mf.Name) ($sizeMB MB)"
+                Write-Host "    $($mf.Name) ($sizeMB MB) in $($mf.DirectoryName)"
                 try {
                     Copy-Item $mf.FullName $sleepDir -Force -ErrorAction Stop
-                    Write-Host "    -> Copied to evidence folder"
+                    Write-Host "    -> COPIED to evidence folder"
                 } catch {
-                    Write-Host "    -> WARNING: Could not copy - $_"
+                    Write-Host "    -> Copy-Item failed: $_ - trying robocopy..."
+                    try {
+                        & robocopy $mf.DirectoryName $sleepDir $mf.Name /R:1 /W:1 2>&1 | Out-Null
+                        if (Test-Path (Join-Path $sleepDir $mf.Name)) {
+                            Write-Host "    -> COPIED via robocopy"
+                        } else {
+                            Write-Host "    -> ERROR: robocopy also failed - copy manually!"
+                        }
+                    } catch {
+                        Write-Host "    -> ERROR: Could not copy .vmem - copy manually!"
+                    }
                 }
             }
-            Write-Host "  Analyse .vmem with Volatility: vol.py -f vmem_file windows.pslist"
+            Write-Host "  Analyse .vmem with: vol.py -f <vmem_file> windows.pslist"
         } else {
-            Write-Host "  NOTE: No memory snapshot found - VM was shut down (not suspended)."
-            Write-Host "  No live memory available for this VM."
+            Write-Host ""
+            Write-Host "  WARNING: No .vmem/.vmsn/.vmss found in any searched location."
+            Write-Host "  VM may have been shut down (not suspended), or memory file is elsewhere."
+            Write-Host "  If you can see a .vmem file, enter its path now (or press Enter to skip):"
+            $manualVmem = Read-Host "  .vmem path"
+            if ($manualVmem -and (Test-Path $manualVmem)) {
+                try {
+                    Copy-Item $manualVmem $sleepDir -Force -ErrorAction Stop
+                    Write-Host "    -> COPIED $manualVmem to evidence folder"
+                } catch {
+                    Write-Host "    -> ERROR copying: $_"
+                }
+            }
+        }
+
+        # Copy .vmx config file (identifies VM name, hardware config)
+        $vmxFiles = Get-ChildItem $vmDir -Filter "*.vmx" -File -ErrorAction SilentlyContinue
+        foreach ($vmx in $vmxFiles) {
+            try {
+                Copy-Item $vmx.FullName $sleepDir -Force -ErrorAction SilentlyContinue
+                Write-Host "  Copied VM config: $($vmx.Name)"
+            } catch { }
         }
     }
 
-    # â”€â”€ Image the VMDK with FTK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Image the VMDK with FTK (falls back to raw copy) ----------------------
     if ($VmdkPath -and (Test-Path $VmdkPath)) {
         Write-Host ""
         Write-Host "  Imaging VMDK with FTK Imager..."
-        Get-FTKImage -OutputPath $sleepDir `
+        $ftkResult = Get-FTKImage -OutputPath $sleepDir `
                      -ScriptRoot $ScriptRoot `
                      -SourcePath $VmdkPath `
                      -VmLabel $VmLabel `
                      -Format "E01" `
                      -Description "Offline VMDK image: $VmLabel"
-    }
 
+        if (-not $ftkResult) {
+            Write-Host ""
+            Write-Host "  FTK not available - falling back to raw VMDK copy..."
+            try {
+                $vmdkDir  = Split-Path $VmdkPath -Parent
+                $vmdkBase = [System.IO.Path]::GetFileNameWithoutExtension($VmdkPath)
+                $relatedFiles = Get-ChildItem $vmdkDir -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match [regex]::Escape($vmdkBase) -and $_.Extension -eq '.vmdk' }
+                foreach ($rf in $relatedFiles) {
+                    Write-Host "    Copying: $($rf.Name) ($([math]::Round($rf.Length / 1MB, 1)) MB)..."
+                    Copy-Item $rf.FullName $sleepDir -Force -ErrorAction Stop
+                }
+                Write-Host "  Raw VMDK copy complete."
+            } catch {
+                Write-Host "  ERROR copying VMDK: $_ - copy manually!"
+            }
+        }
+    }
     # â”€â”€ Write offline analysis notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @"
 SLEEPING VM OFFLINE ANALYSIS NOTES

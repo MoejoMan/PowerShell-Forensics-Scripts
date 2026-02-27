@@ -49,7 +49,7 @@ function Export-MemoryDump {
 
     $outputFile = Join-Path $OutputPath "memory_$(Get-Date -Format 'ddMMyyyy-HHmmss').raw"
 
-    # ── Strategy 1: WinPmem ──────────────────────────────────────────────────
+    # - Strategy 1: WinPmem -
     if ($winpmem) {
         try {
             Write-Host "Acquiring memory via WinPmem... this may take a minute"
@@ -75,7 +75,7 @@ function Export-MemoryDump {
         }
     }
 
-    # ── Strategy 2: DumpIt.exe ───────────────────────────────────────────────
+    # - Strategy 2: DumpIt.exe -
     if ($dumpIt -and -not $result.Success) {
         try {
             Write-Host "Acquiring memory via DumpIt: $dumpIt"
@@ -2434,7 +2434,7 @@ function Get-MemoryStrings {
 
     $iocs = @()   # collected IOC items for the HTML report
 
-    # ── 1. VOLATILITY 3 AUTO-ANALYSIS ────────────────────────────────────────
+    # - 1. VOLATILITY 3 AUTO-ANALYSIS -
     $volPaths = @(
         (Get-Command vol -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
         (Get-Command vol.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
@@ -2537,7 +2537,7 @@ function Get-MemoryStrings {
         Write-Host "    Place in: $ScriptRoot\bin\"
     }
 
-    # ── 2. STRINGS EXTRACTION ────────────────────────────────────────────────
+    # - 2. STRINGS EXTRACTION -
     $stringsPaths = @(
         (Get-Command strings -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
         (Get-Command strings.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue),
@@ -2622,7 +2622,7 @@ function Get-MemoryStrings {
         Write-Host "    Place strings64.exe in: $ScriptRoot\bin\"
     }
 
-    # ── 3. SUMMARY NOTE ─────────────────────────────────────────────────────
+    # - 3. SUMMARY NOTE -
     $toolsFound = @()
     if ($vol) { $toolsFound += "Volatility 3" }
     if ($strings) { $toolsFound += "strings.exe" }
