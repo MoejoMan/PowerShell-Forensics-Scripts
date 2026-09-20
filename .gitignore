@@ -26,3 +26,9 @@ EXAMPLE SCRIPTS/
 # System files
 .DS_Store
 Thumbs.db
+
+# Third party executables (download separately, see README prerequisites)
+*.exe
+
+# University assessment brief (not ours to redistribute)
+brief.txt
