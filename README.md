@@ -88,7 +88,7 @@ This toolkit automates **55+ forensic collection functions** across 5 script fil
 
 ## Prerequisites
 
-The scripts themselves are pure PowerShell 5.1 (built into Windows 10/11) — no install needed. However, several **optional external tools** enhance collection capabilities. Place them in a `bin/` folder at the project root:
+The scripts themselves are pure PowerShell 5.1 (built into Windows 10/11), no install needed. However, several **optional external tools** enhance collection capabilities. Place them in a `bin/` folder at the project root:
 
 | Tool | Required? | Purpose | Download | Place in |
 |------|-----------|---------|----------|----------|
@@ -101,7 +101,7 @@ The scripts themselves are pure PowerShell 5.1 (built into Windows 10/11) — no
 | **Volatility 3** | For memory analysis | RAM image analysis framework | [GitHub](https://github.com/volatilityfoundation/volatility3) | `bin/volatility3/` |
 | **Python 3.x** | For Volatility 3 | Volatility runtime | [python.org](https://www.python.org/downloads/) | In system PATH |
 
-> **Note:** `bin/` is git-ignored. These tools must be downloaded separately and placed locally. The toolkit works without them — features that need missing tools will gracefully skip.
+> **Note:** `bin/` is git-ignored. These tools must be downloaded separately and placed locally. The toolkit works without them. Features that need missing tools will gracefully skip.
 
 ## Project Structure
 
@@ -291,8 +291,8 @@ Auto-elevating batch launcher. Requests admin via UAC if not already elevated. P
 ## Notes
 
 - Run as **administrator** for full collection (RAM, prefetch, security logs, SRUM, $MFT, registry hives).
-- Without admin, most collectors still work — locked files and privileged artifacts are gracefully skipped.
-- `bin/` is **not included in the repository** — download tools separately (see Prerequisites above).
+- Without admin, most collectors still work: locked files and privileged artifacts are gracefully skipped.
+- `bin/` is **not included in the repository**, so download tools separately (see Prerequisites above).
 - WinPmem must be in `bin\winpmem\` for RAM capture.
 - FTK Imager CLI must be in `bin\FTKImager\` for VMDK imaging.
 - Volatility 3 requires Python in PATH (source in `bin\volatility3\`).

@@ -71,7 +71,7 @@ function Export-MemoryDump {
             }
             Write-Host "WinPmem failed (exit code $exitCode). Trying DumpIt fallback..."
         } catch {
-            Write-Host "WinPmem error: $_  — Trying DumpIt fallback..."
+            Write-Host "WinPmem error: $_. Trying DumpIt fallback..."
         }
     }
 
@@ -138,7 +138,7 @@ function Get-SystemInfo {
         $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Serial Number';      Value = if ($bios) { $bios.SerialNumber } else { 'N/A' } }
         $items += [pscustomobject]@{ Category = 'BIOS';    Property = 'Model';              Value = if ($cs) { "$($cs.Manufacturer) $($cs.Model)" } else { 'N/A' } }
 
-        # Motherboard / Baseboard (chain-of-custody — identifies the physical machine)
+        # Motherboard / Baseboard (chain-of-custody: identifies the physical machine)
         try {
             $baseboard = Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
             if ($baseboard) {
@@ -301,7 +301,7 @@ function Get-PrefetchFiles {
         [string]$OutputPath
     )
     # Enumerates Windows prefetch (.pf) files for recent program execution artefacts and exports to CSV.
-    # Also copies the actual .pf files — they contain execution count, timestamps, and DLL/file references.
+    # Also copies the actual .pf files: they contain execution count, timestamps, and DLL/file references.
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Collecting Prefetch Files ==="
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
@@ -315,7 +315,7 @@ function Get-PrefetchFiles {
             $prefetch | Export-Csv "$OutputPath\prefetch.csv" -NoTypeInformation -Encoding UTF8
             Write-Host "Prefetch metadata saved to: $OutputPath\prefetch.csv"
 
-            # Copy actual .pf files — these contain execution counts, run timestamps,
+            # Copy actual .pf files: these contain execution counts, run timestamps,
             # and lists of files/DLLs loaded by each program. Parse with PECmd.exe.
             $pfDir = Join-Path $OutputPath "prefetch_files"
             New-Item -ItemType Directory -Path $pfDir -Force | Out-Null
@@ -1000,7 +1000,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($MemoryStrings) { $MemoryStrings = @($MemoryStrings | Where-Object { $_.Source } | Select-Object Source, Plugin, Detail, File) }
             $html += @"
 <details open>
-    <summary>Memory Analysis — Volatility &amp; Strings ($(if($MemoryStrings){@($MemoryStrings).Count}else{0}) IOC categories)</summary>
+    <summary>Memory Analysis: Volatility &amp; Strings ($(if($MemoryStrings){@($MemoryStrings).Count}else{0}) IOC categories)</summary>
     <p><em>Automated memory analysis results. Volatility 3 plugin output and strings extraction for emails, IPs, URLs, UNC paths, bitcoin addresses, and password references. Full output files are in the <code>memory_analysis</code> subfolder.</em></p>
     $(@($MemoryStrings) | ConvertTo-Html -Fragment)
 </details>
@@ -1147,12 +1147,12 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
     <p><strong>Collected to:</strong> $RegistryHives</p>
     <p><strong>Key hives:</strong></p>
     <ul>
-        <li><strong>SAM</strong> — Local user accounts and password hashes</li>
-        <li><strong>SYSTEM</strong> — Hardware config, timezone, USB history, network interfaces</li>
-        <li><strong>SOFTWARE</strong> — Installed programs, autorun entries, OS settings</li>
-        <li><strong>SECURITY</strong> — LSA secrets, cached credentials</li>
-        <li><strong>NTUSER.DAT</strong> — Per-user settings, MRU lists, typed paths, UserAssist</li>
-        <li><strong>UsrClass.dat</strong> — User-specific COM/shell settings, folder access (ShellBags)</li>
+        <li><strong>SAM</strong>: Local user accounts and password hashes</li>
+        <li><strong>SYSTEM</strong>: Hardware config, timezone, USB history, network interfaces</li>
+        <li><strong>SOFTWARE</strong>: Installed programs, autorun entries, OS settings</li>
+        <li><strong>SECURITY</strong>: LSA secrets, cached credentials</li>
+        <li><strong>NTUSER.DAT</strong>: Per-user settings, MRU lists, typed paths, UserAssist</li>
+        <li><strong>UsrClass.dat</strong>: User-specific COM/shell settings, folder access (ShellBags)</li>
     </ul>
 </details>
 "@
@@ -1162,7 +1162,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             $html += @"
 <details>
     <summary>SRUM Database (Priority 7)</summary>
-    <p><em>System Resource Usage Monitor — records per-application network bytes sent/received, CPU time, and energy usage with timestamps going back ~30 days. Persists even after browser history is cleared. Can prove network exfiltration activity.</em></p>
+    <p><em>System Resource Usage Monitor: records per-application network bytes sent/received, CPU time, and energy usage with timestamps going back ~30 days. Persists even after browser history is cleared. Can prove network exfiltration activity.</em></p>
     <p><strong>Collected to:</strong> $SRUMDatabase</p>
     <p><strong>Parse with:</strong> SrumECmd.exe (Eric Zimmermann) or srum-dump</p>
 </details>
@@ -1185,7 +1185,7 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             $html += @"
 <details>
     <summary>LNK Files &amp; Jump Lists ($(if($LnkFiles){@($LnkFiles).Count}else{0}) metadata entries) (Priority 7)</summary>
-    <p><em>LNK shortcut files are created automatically when files are opened. They contain the original file path, MAC timestamps, and volume serial number — even if the original file no longer exists. Jump Lists extend this with per-application MRU lists.</em></p>
+    <p><em>LNK shortcut files are created automatically when files are opened. They contain the original file path, MAC timestamps, and volume serial number: even if the original file no longer exists. Jump Lists extend this with per-application MRU lists.</em></p>
     <p><strong>Parse with:</strong> LECmd.exe and JLECmd.exe (Eric Zimmermann)</p>
     $(@($LnkFiles) | ConvertTo-Html -Fragment)
 </details>
@@ -1196,9 +1196,9 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             $html += @"
 <details>
     <summary>Thumbnail Cache (Priority 7)</summary>
-    <p><em>Windows caches thumbnails of viewed images, videos, and documents. These can retain thumbnails of files that have since been deleted — potentially showing images the suspect viewed even after they cleared downloads or recycle bin.</em></p>
+    <p><em>Windows caches thumbnails of viewed images, videos, and documents. These can retain thumbnails of files that have since been deleted: potentially showing images the suspect viewed even after they cleared downloads or recycle bin.</em></p>
     <p><strong>Collected to:</strong> $ThumbnailCache</p>
-    <p><strong>Parse with:</strong> Thumbcache Viewer — https://thumbcacheviewer.github.io</p>
+    <p><strong>Parse with:</strong> Thumbcache Viewer: https://thumbcacheviewer.github.io</p>
 </details>
 "@
         }
@@ -1252,8 +1252,8 @@ $(@($EventLogApplication) | ConvertTo-Html -Fragment)
             if ($MemoryFiles) { $MemoryFiles = @($MemoryFiles | Where-Object { $_.File } | Select-Object File, SizeMB, Status, Description, Method) }
             $html += @"
 <details open>
-    <summary>Memory Files — Pagefile / Hiberfil ($(if($MemoryFiles){@($MemoryFiles).Count}else{0}) targets) (Priority 8)</summary>
-    <p><em>pagefile.sys contains RAM fragments (passwords, documents, network data). hiberfil.sys is a full RAM snapshot from hibernation — parse with Volatility as a memory image. swapfile.sys contains UWP app swap data.</em></p>
+    <summary>Memory Files: Pagefile / Hiberfil ($(if($MemoryFiles){@($MemoryFiles).Count}else{0}) targets) (Priority 8)</summary>
+    <p><em>pagefile.sys contains RAM fragments (passwords, documents, network data). hiberfil.sys is a full RAM snapshot from hibernation. Parse with Volatility as a memory image. swapfile.sys contains UWP app swap data.</em></p>
     <p><strong>Analysis tips:</strong></p>
     <ul>
         <li>hiberfil.sys: <code>vol.py -f hiberfil.sys windows.pslist</code></li>
@@ -1434,7 +1434,7 @@ function Get-NetworkConfig {
     }
 }
 
-# Get-EventLogTriage removed — replaced by Get-FullEventLogs in new_functions.ps1
+# Get-EventLogTriage removed: replaced by Get-FullEventLogs in new_functions.ps1
 
 function Get-WmiPersistence {
     param(
@@ -2404,9 +2404,9 @@ function Get-RDPAndRemoteSessions {
 # ============================================================================
 
 # Performs automated memory analysis on a RAM dump using:
-#   1. Volatility 3 (if vol.py or vol.exe is available) — runs pslist, netscan,
+#   1. Volatility 3 (if vol.py or vol.exe is available): runs pslist, netscan,
 #      filescan, cmdline, malfind plugins and saves CSV/text output
-#   2. SysInternals strings.exe (if available) — extracts IPs, emails, URLs,
+#   2. SysInternals strings.exe (if available): extracts IPs, emails, URLs,
 #      bitcoin addresses, file paths, and passwords from the raw dump
 #   3. Falls back to writing an advisory note if neither tool is present
 #
@@ -2421,7 +2421,7 @@ function Get-MemoryStrings {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Memory Dump Analysis ==="
 
     if (-not $RamDumpPath -or -not (Test-Path $RamDumpPath)) {
-        Write-Host "(No RAM dump available — skipping memory analysis)"
+        Write-Host "(No RAM dump available, skipping memory analysis)"
         return $null
     }
 
@@ -2477,7 +2477,7 @@ function Get-MemoryStrings {
         if (-not $python) { $python = (Get-Command python3 -ErrorAction SilentlyContinue).Path }
         if ($python) {
             $vol = "python_script:$vol"
-            Write-Host "  Volatility 3 source found — will run via Python"
+            Write-Host "  Volatility 3 source found, will run via Python"
         } else {
             Write-Host "  WARNING: vol.py found but Python not available in PATH"
             $vol = $null
@@ -2488,7 +2488,7 @@ function Get-MemoryStrings {
         Write-Host "  Running Volatility 3 analysis (this may take several minutes)..."
         Write-Host "  Using: $vol"
 
-        # Plugins to run — each maps to inter-VM linking or suspect profiling
+        # Plugins to run: each maps to inter-VM linking or suspect profiling
         $plugins = @(
             @{ Name = 'windows.pslist';    Desc = 'Running processes' },
             @{ Name = 'windows.netscan';   Desc = 'Network connections (inter-VM links)' },
@@ -2519,7 +2519,7 @@ function Get-MemoryStrings {
                         $iocs += [pscustomobject]@{
                             Source  = 'Volatility3'
                             Plugin  = $plugin.Name
-                            Detail  = "$($plugin.Desc) — $lineCount entries"
+                            Detail  = "$($plugin.Desc): $lineCount entries"
                             File    = $outFile
                         }
                     }
@@ -2597,7 +2597,7 @@ function Get-MemoryStrings {
                                 $iocs += [pscustomobject]@{
                                     Source  = 'StringsExtraction'
                                     Plugin  = $pat.Name
-                                    Detail  = "$count unique $($pat.Desc) — top: $preview"
+                                    Detail  = "$count unique $($pat.Desc), top: $preview"
                                     File    = $destFile
                                 }
                             }
@@ -2626,7 +2626,7 @@ function Get-MemoryStrings {
     $toolsFound = @()
     if ($vol) { $toolsFound += "Volatility 3" }
     if ($strings) { $toolsFound += "strings.exe" }
-    $toolStatus = if ($toolsFound.Count -gt 0) { $toolsFound -join ' + ' } else { "NONE — manual analysis required" }
+    $toolStatus = if ($toolsFound.Count -gt 0) { $toolsFound -join ' + ' } else { "NONE: manual analysis required" }
 
     $note = @"
 MEMORY DUMP ANALYSIS SUMMARY
@@ -2664,7 +2664,7 @@ MANUAL ANALYSIS COMMANDS:
     Write-Host "  Summary saved to: $memDir\memory_analysis_summary.txt"
 
     if ($iocs.Count -gt 0) {
-        Write-Host "  $($iocs.Count) IOC categories found — see HTML report for details"
+        Write-Host "  $($iocs.Count) IOC categories found, see HTML report for details"
         return $iocs
     }
 
@@ -2784,7 +2784,7 @@ function Get-ShadowCopies {
 # Detects potential timestamp manipulation (timestomping).
 # Under normal Windows operation, a file's CreationTime is always
 # <= its LastWriteTime.  If Created > Modified, the timestamps
-# have been tampered with — a classic anti-forensic technique used
+# have been tampered with: a classic anti-forensic technique used
 # to make malicious files blend in by appearing older.
 function Get-TimestompDetection {
     param(
@@ -2809,7 +2809,7 @@ function Get-TimestompDetection {
             Get-ChildItem -Path $dir -Recurse -Depth 4 -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
                 # Created should be <= Modified; if Created > Modified by more than 24 hours,
                 # timestamps were likely manipulated. Small deltas (< 24h) are common from
-                # file copies, Windows Updates, and app installers — not forensically significant.
+                # file copies, Windows Updates, and app installers: not forensically significant.
                 if ($_.CreationTime -gt $_.LastWriteTime) {
                     $delta = ($_.CreationTime - $_.LastWriteTime).TotalHours
                     if ($delta -ge 24) {
@@ -3356,7 +3356,7 @@ function Get-BrowserSearchHistory {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] === Extracting Browser Search Queries ==="
     $items = @()
 
-    # Look for copied browser SQLite databases (Chrome/Edge only — Firefox is handled separately below)
+    # Look for copied browser SQLite databases (Chrome/Edge only; Firefox is handled separately below)
     $browserDir = "$OutputPath\browser_artifacts"
     $dbFiles = @()
     if (Test-Path $browserDir) {
@@ -3748,7 +3748,7 @@ function Get-GameArtifacts {
 # EML / MSG FILE SCANNER
 # ============================================================================
 # Scans user directories for standalone email files (.eml, .msg).
-# The brief states that a victim has granted access to emails — these
+# The brief states that a victim has granted access to emails: these
 # may exist as individual files on the VM rather than inside a mail client.
 # EML files are plain-text MIME format; MSG files are Outlook's proprietary format.
 function Get-EmlMsgFiles {

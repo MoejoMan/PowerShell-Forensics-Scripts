@@ -507,7 +507,7 @@ function Get-MFTAndUsnJournal {
 
     # Strategy A: PowerForensics Copy-ForensicFile (reads raw NTFS directly)
     if ($hasPowerForensics -and -not $mftExtracted) {
-        Write-Host "  PowerForensics found — extracting `$MFT via Copy-ForensicFile..."
+        Write-Host "  PowerForensics found, extracting `$MFT via Copy-ForensicFile..."
         try {
             Import-Module $pfModule -Force -ErrorAction Stop
             $mftDest = Join-Path $mftDir "`$MFT"
@@ -560,7 +560,7 @@ function Get-MFTAndUsnJournal {
 
     # - 3. $LogFile (NTFS transaction log) -
     # The NTFS $LogFile records all metadata changes (file create/delete/rename).
-    # Critical for timeline reconstruction — shows what happened even after deletion.
+    # Critical for timeline reconstruction: shows what happened even after deletion.
     Write-Host "  Extracting `$LogFile (NTFS transaction log)..."
     $logFileExtracted = $false
 

@@ -35,7 +35,7 @@ TODO - Updated 20 Feb 2026
 [DONE] Fixed SuppressMessageAttribute placement in main.ps1
 [DONE] Fixed Write-Output → Write-Host in main.ps1 header block
 [DONE] PSScriptAnalyzer: $null comparisons, $input rename, $matches rename
-[DONE] RawCopy no longer needed — PowerForensics + esentutl handle $MFT/$LogFile/$UsnJrnl
+[DONE] RawCopy no longer needed: PowerForensics + esentutl handle $MFT/$LogFile/$UsnJrnl
 
 [ ] Test full script run on a practice VM BEFORE crime scene day
        Run as admin, check all output folders populate, HTML report renders
